@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database, Plus, Wifi, WifiOff, Loader2, Pencil, Trash2, Zap,
-  CheckCircle, XCircle,
+  CheckCircle, XCircle, AlertCircle,
 } from 'lucide-react';
 import PageLayout from '../components/layout/PageLayout';
 import Card from '../components/common/Card';
@@ -11,6 +11,7 @@ import Select from '../components/common/Select';
 import Modal from '../components/common/Modal';
 import Toggle from '../components/common/Toggle';
 import useConnectionStore from '../store/connectionStore';
+import { testConnectionParams } from '../api/connectionsApi';
 
 const DB_TYPES = [
   { value: 'postgresql', label: 'PostgreSQL' },
@@ -41,6 +42,7 @@ export default function ConnectionsPage() {
   const {
     connections,
     activeConnectionId,
+    fetchConnections,
     addConnection,
     updateConnection,
     removeConnection,
@@ -52,11 +54,19 @@ export default function ConnectionsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [testResult, setTestResult] = useState(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  useEffect(() => {
+    fetchConnections();
+  }, [fetchConnections]);
 
   const handleOpenNew = () => {
     setForm(INITIAL_FORM);
     setEditingId(null);
     setTestResult(null);
+    setSaveError(null);
     setShowModal(true);
   };
 
@@ -73,6 +83,7 @@ export default function ConnectionsPage() {
     });
     setEditingId(conn.id);
     setTestResult(null);
+    setSaveError(null);
     setShowModal(true);
   };
 
@@ -89,31 +100,64 @@ export default function ConnectionsPage() {
     setForm((f) => ({ ...f, [field]: e.target.value }));
   };
 
-  const handleTestConnection = () => {
-    setTestResult('testing');
-    setTimeout(() => {
-      setTestResult('success');
-    }, 1500);
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await testConnectionParams(form);
+      setTestResult(res);
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: err.response?.data?.detail || err.message || 'Connection test failed',
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+
     const config = {
       name: form.name,
       dbType: form.dbType,
       host: form.host,
-      port: Number(form.port),
+      port: Number(form.port) || DEFAULT_PORTS[form.dbType] || 5432,
       database: form.database,
       username: form.username,
       ssl: form.ssl,
     };
 
-    if (editingId) {
-      updateConnection(editingId, config);
-    } else {
-      const id = addConnection(config);
-      if (!activeConnectionId) setActiveConnection(id);
+    if (form.password) {
+      config.password = form.password;
     }
-    setShowModal(false);
+
+    try {
+      if (editingId) {
+        await updateConnection(editingId, config);
+      } else {
+        if (!form.password) {
+          throw new Error('Password is required for new database connections.');
+        }
+        const id = await addConnection(config);
+        if (!activeConnectionId && id) {
+          setActiveConnection(id);
+        }
+      }
+      setShowModal(false);
+    } catch (err) {
+      const errorMsg =
+        typeof err.response?.data?.detail === 'string'
+          ? err.response.data.detail
+          : Array.isArray(err.response?.data?.detail)
+          ? err.response.data.detail.map((d) => d.msg).join(', ')
+          : err.message || 'Failed to save connection';
+      setSaveError(errorMsg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = (id) => {
@@ -228,16 +272,39 @@ export default function ConnectionsPage() {
           maxWidth="600px"
           footer={
             <>
-              <Button variant="ghost" onClick={() => setShowModal(false)}>
+              <Button variant="ghost" onClick={() => setShowModal(false)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleSave} disabled={!form.name || !form.host || !form.database}>
-                {editingId ? 'Update' : 'Save Connection'}
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={!form.name || !form.host || !form.database || (!editingId && !form.password) || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }} />
+                    Saving...
+                  </>
+                ) : editingId ? (
+                  'Update'
+                ) : (
+                  'Save Connection'
+                )}
               </Button>
             </>
           }
         >
           <div className="connection-form">
+            {saveError && (
+              <div
+                className="connection-test-result error"
+                style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <AlertCircle size={16} />
+                <span>{saveError}</span>
+              </div>
+            )}
+
             <Input
               label="Connection Name"
               value={form.name}
@@ -281,13 +348,15 @@ export default function ConnectionsPage() {
                 value={form.username}
                 onChange={handleFormChange('username')}
                 placeholder="db_user"
+                required
               />
               <Input
-                label="Password"
+                label={editingId ? "Password (leave blank to keep current)" : "Password"}
                 type="password"
                 value={form.password}
                 onChange={handleFormChange('password')}
                 placeholder="••••••••"
+                required={!editingId}
               />
             </div>
             <Toggle
@@ -298,29 +367,39 @@ export default function ConnectionsPage() {
 
             <Button
               variant="ghost"
-              icon={Zap}
+              icon={isTesting ? Loader2 : Zap}
               onClick={handleTestConnection}
-              disabled={!form.host || !form.database}
+              disabled={!form.host || !form.database || !form.username || isTesting}
             >
-              Test Connection
+              {isTesting ? 'Testing Connectivity...' : 'Test Connection'}
             </Button>
 
-            {testResult === 'testing' && (
-              <div className="connection-test-result" style={{ backgroundColor: 'var(--color-border)' }}>
+            {isTesting && (
+              <div className="connection-test-result" style={{ backgroundColor: 'var(--color-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                Testing connection...
+                Connecting to {form.host}:{form.port || DEFAULT_PORTS[form.dbType] || 5432}...
               </div>
             )}
-            {testResult === 'success' && (
-              <div className="connection-test-result success">
-                <CheckCircle size={16} />
-                Connection successful!
+            {!isTesting && testResult && testResult.success && (
+              <div className="connection-test-result success" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <CheckCircle size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 600 }}>Connection successful!</div>
+                  <div style={{ fontSize: '12px', opacity: 0.85 }}>
+                    {testResult.message} {testResult.latency_ms != null && `(${testResult.latency_ms}ms)`}
+                  </div>
+                </div>
               </div>
             )}
-            {testResult === 'error' && (
-              <div className="connection-test-result error">
-                <XCircle size={16} />
-                Connection failed. Check your credentials.
+            {!isTesting && testResult && !testResult.success && (
+              <div className="connection-test-result error" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <XCircle size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 600 }}>Connection failed</div>
+                  <div style={{ fontSize: '12px', opacity: 0.85, wordBreak: 'break-word' }}>
+                    {testResult.message}
+                  </div>
+                </div>
               </div>
             )}
           </div>

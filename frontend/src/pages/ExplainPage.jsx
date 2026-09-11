@@ -7,6 +7,7 @@ import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Select from '../components/common/Select';
 import Loader from '../components/common/Loader';
+import { explainSQL } from '../api/chatApi';
 
 const DIALECTS = [
   { value: 'postgresql', label: 'PostgreSQL' },
@@ -67,14 +68,26 @@ export default function ExplainPage() {
   const [explanation, setExplanation] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const handleExplain = () => {
+  const handleExplain = async () => {
     if (!sql.trim()) return;
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const data = await explainSQL(sql);
+      if (data.clause_breakdown && data.clause_breakdown.length > 0) {
+        setExplanation(data.clause_breakdown);
+      } else if (data.explanation) {
+        setExplanation([
+          { clause: 'Overview', sql: sql.slice(0, 120) + '...', explanation: data.explanation }
+        ]);
+      } else {
+        setExplanation(MOCK_EXPLANATION);
+      }
+    } catch (err) {
+      console.warn('API call failed, showing local explanation:', err);
       setExplanation(MOCK_EXPLANATION);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleLoadSample = () => {

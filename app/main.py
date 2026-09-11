@@ -17,6 +17,8 @@ from app.config import settings
 from app.db.database import init_db, close_db, async_session_factory
 import app.models  # Ensure all models are registered with Base.metadata
 from app.models.rbac import Role
+from app.models.user import User
+from app.core.security import hash_password
 from app.services.connection_manager import connection_manager
 
 # Import API routes
@@ -40,7 +42,7 @@ logger = logging.getLogger("querypilot")
 
 
 async def seed_default_roles():
-    """Seed default built-in roles if they do not exist."""
+    """Seed default built-in roles and default admin user if they do not exist."""
     default_roles = [
         {
             "name": "admin",
@@ -78,11 +80,28 @@ async def seed_default_roles():
                 if not existing:
                     new_role = Role(**role_data)
                     session.add(new_role)
+
+            # Seed default admin user
+            admin_res = await session.execute(
+                select(User).where(User.username == "admin")
+            )
+            admin_user = admin_res.scalar_one_or_none()
+            if not admin_user:
+                new_admin = User(
+                    email="admin@querypilot.local",
+                    username="admin",
+                    hashed_password=hash_password("admin123"),
+                    full_name="System Administrator",
+                    role="admin",
+                )
+                session.add(new_admin)
+                logger.info("Default admin user created (admin / admin123).")
+
             await session.commit()
-            logger.info("Default roles initialized.")
+            logger.info("Default roles and users initialized.")
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Role initialization skipped or failed: {e}")
+            logger.warning(f"Role/User initialization skipped or failed: {e}")
 
 
 @asynccontextmanager

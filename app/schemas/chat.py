@@ -83,7 +83,7 @@ class QueryResponse(BaseModel):
     message: ChatMessageResponse
     explanation: str
     sql: Optional[str] = None
-    results: Optional[List[dict]] = None
+    results: Optional[List[Any]] = None
     columns: Optional[List[str]] = None
     row_count: Optional[int] = None
     execution_time_ms: Optional[float] = None

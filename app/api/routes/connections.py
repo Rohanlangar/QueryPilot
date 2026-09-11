@@ -21,9 +21,29 @@ from app.schemas.connection import (
     ConnectionUpdate,
     ConnectionResponse,
     ConnectionTestResult,
+    ConnectionTestParams,
 )
 
 router = APIRouter(prefix="/api/connections", tags=["Connections"])
+
+
+@router.post("/test-params", response_model=ConnectionTestResult)
+async def test_connection_params(
+    body: ConnectionTestParams,
+    user: User = Depends(get_current_user),
+):
+    """Test connectivity using raw connection parameters before saving."""
+    result = await connection_manager.test_raw_connection(
+        db_type=body.db_type,
+        host=body.host,
+        port=body.port,
+        database_name=body.database_name,
+        username=body.username,
+        password=body.password,
+        ssl_enabled=body.ssl_enabled,
+        extra_params=body.extra_params,
+    )
+    return ConnectionTestResult(**result)
 
 
 @router.post("", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
@@ -47,7 +67,7 @@ async def create_connection(
         extra_params=body.extra_params,
     )
     db.add(conn)
-    await db.flush()
+    await db.commit()
     await db.refresh(conn)
     return conn
 
@@ -124,7 +144,7 @@ async def update_connection(
     # Invalidate cached engine since connection params changed
     await connection_manager.close_connection(connection_id)
 
-    await db.flush()
+    await db.commit()
     await db.refresh(conn)
     return conn
 
@@ -148,7 +168,7 @@ async def delete_connection(
 
     await connection_manager.close_connection(connection_id)
     await db.delete(conn)
-    await db.flush()
+    await db.commit()
 
 
 @router.post("/{connection_id}/test", response_model=ConnectionTestResult)

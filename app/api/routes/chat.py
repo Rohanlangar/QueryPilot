@@ -257,6 +257,11 @@ async def send_message(
     # Success — save results
     sql_executed = pipeline_result.optimized_sql or pipeline_result.generated_sql
     results = pipeline_result.query_results
+    if results and results.get("rows") and results.get("columns"):
+        raw_rows = results["rows"]
+        if raw_rows and isinstance(raw_rows[0], (list, tuple)):
+            cols = results["columns"]
+            results["rows"] = [dict(zip(cols, r)) for r in raw_rows]
     results_json = json.dumps(results) if results else None
     follow_ups = json.dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
     chart_config = json.dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None

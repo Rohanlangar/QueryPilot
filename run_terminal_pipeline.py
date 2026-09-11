@@ -19,6 +19,10 @@ import os
 import time
 import json
 
+# Prevent Windows console cp1252 Unicode encoding errors
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Ensure Agents package is accessible
 _agents_dir = os.path.join(os.path.dirname(__file__), "Agents")
 if _agents_dir not in sys.path:

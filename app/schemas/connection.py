@@ -23,6 +23,21 @@ class ConnectionCreate(BaseModel):
     extra_params: Optional[str] = None  # JSON string
 
 
+class ConnectionTestParams(BaseModel):
+    """Request body for testing connection parameters before saving."""
+    db_type: str = Field(
+        ..., pattern="^(postgresql|mysql|mssql|oracle)$",
+        examples=["postgresql"],
+    )
+    host: str = Field(..., max_length=255, examples=["db.example.com"])
+    port: int = Field(..., ge=1, le=65535, examples=[5432])
+    database_name: str = Field(..., max_length=255, examples=["analytics_db"])
+    username: str = Field(..., max_length=255, examples=["readonly_user"])
+    password: str = Field(..., max_length=500)
+    ssl_enabled: bool = False
+    extra_params: Optional[str] = None
+
+
 class ConnectionUpdate(BaseModel):
     """Request body for updating a connection."""
     name: Optional[str] = None

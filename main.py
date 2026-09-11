@@ -57,6 +57,31 @@ AUDIT_DB_PATH = os.path.join(os.path.dirname(__file__), "query_audit.db")
 _cache: Dict[str, tuple[float, dict]] = {}
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
+# Mount full QueryPilot application routers for frontend compatibility
+try:
+    from app.main import (
+        auth_router,
+        connections_router,
+        chat_router,
+        schema_router,
+        admin_router,
+        audit_router,
+        ws_router,
+        agent_query_router,
+        seed_default_roles,
+    )
+    from app.db.database import init_db
+    app.include_router(auth_router)
+    app.include_router(connections_router)
+    app.include_router(chat_router)
+    app.include_router(schema_router)
+    app.include_router(admin_router)
+    app.include_router(audit_router)
+    app.include_router(ws_router)
+    app.include_router(agent_query_router)
+except Exception as _import_err:
+    print(f"Notice: App routes not mounted to root main: {_import_err}")
+
 
 # ---------------------------------------------------------------------------
 # Models
@@ -169,7 +194,7 @@ def log_query_audit(
 # ---------------------------------------------------------------------------
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Ensure demo database is seeded, schema is cached, and graph is built."""
     global _graph
     print("Initializing QueryPilot...")
@@ -194,6 +219,14 @@ def startup_event():
     # 4. Compile the LangGraph pipeline
     _graph = build_graph()
     print("LangGraph pipeline compiled successfully.")
+
+    # 5. Initialize app database tables & default roles / admin user
+    try:
+        await init_db()
+        await seed_default_roles()
+        print("App database & roles/admin user initialized.")
+    except Exception as e:
+        print(f"Notice: App DB initialization skipped or error: {e}")
 
 
 # ---------------------------------------------------------------------------

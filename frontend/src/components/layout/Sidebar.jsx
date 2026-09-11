@@ -5,12 +5,19 @@ import Button from '../common/Button';
 export default function Sidebar({
   isOpen,
   conversations = [],
+  sessions,
   activeConversationId,
+  activeSessionId,
   onSelectConversation,
   onNewConversation,
 }) {
+  const items = sessions || conversations;
+  const currentId = activeSessionId || activeConversationId;
+
   const formatDate = (dateStr) => {
+    if (!dateStr) return '';
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
     const now = new Date();
     const diff = now - d;
     if (diff < 60000) return 'Just now';
@@ -33,7 +40,7 @@ export default function Sidebar({
         </Button>
       </div>
       <div className="sidebar-content">
-        {conversations.length === 0 ? (
+        {items.length === 0 ? (
           <div style={{ padding: '32px 14px', textAlign: 'center' }}>
             <p className="text-body-sm text-muted">No conversations yet.</p>
             <p className="text-label-sm text-muted" style={{ marginTop: '8px' }}>
@@ -41,12 +48,12 @@ export default function Sidebar({
             </p>
           </div>
         ) : (
-          conversations.map((conv) => (
+          items.map((conv) => (
             <button
               key={conv.id}
-              className={`sidebar-item ${conv.id === activeConversationId ? 'active' : ''}`}
+              className={`sidebar-item ${conv.id === currentId ? 'active' : ''}`}
               onClick={() => onSelectConversation(conv.id)}
-              aria-current={conv.id === activeConversationId ? 'page' : undefined}
+              aria-current={conv.id === currentId ? 'page' : undefined}
             >
               <span className="sidebar-item-icon">
                 <MessageSquare size={16} />
@@ -55,7 +62,7 @@ export default function Sidebar({
                 {conv.title || 'Untitled conversation'}
               </span>
               <span className="sidebar-item-meta">
-                {formatDate(conv.createdAt)}
+                {formatDate(conv.created_at || conv.createdAt || conv.updated_at)}
               </span>
             </button>
           ))

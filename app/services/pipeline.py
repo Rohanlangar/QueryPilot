@@ -30,9 +30,27 @@ from app.services.schema_introspector import schema_introspector
 logger = logging.getLogger(__name__)
 
 
+# Ensure Agents package is accessible in sys.path
+import os
+import sys
+
+_agents_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "Agents")
+if _agents_dir not in sys.path:
+    sys.path.insert(0, _agents_dir)
+
+try:
+    from graph.build_graph import build_graph
+    from graph.state import AgentState
+    _langgraph_pipeline = build_graph()
+except Exception as e:
+    logger.warning(f"LangGraph initialization deferred: {e}")
+    _langgraph_pipeline = None
+
+
 class AgentPipeline:
     """
-    Orchestrates the 5-agent pipeline with validation retry loop.
+    Orchestrates the 5-agent pipeline with validation retry loop
+    powered by LangGraph.
     """
 
     def __init__(self):
@@ -53,19 +71,7 @@ class AgentPipeline:
         on_status: callable = None,
     ) -> AgentContext:
         """
-        Execute the full agent pipeline.
-
-        Args:
-            query: Natural language question
-            connection_id: Target database connection ID
-            db_type: Database dialect (postgresql, mysql, etc.)
-            conversation_history: Previous messages for context
-            schema_context: Pre-loaded schema (optional)
-            db: Async database session (for schema introspector)
-            on_status: Callback for status updates (for WebSocket streaming)
-
-        Returns:
-            AgentContext with all pipeline outputs populated
+        Execute the full LangGraph agent pipeline.
         """
         context = AgentContext(
             natural_language_query=query,
@@ -74,102 +80,68 @@ class AgentPipeline:
             conversation_history=conversation_history or [],
         )
 
-        if schema_context:
-            context.schema_context = schema_context
-
         try:
-            # ── Step 1: Schema Understanding ──────────────────
             if on_status:
-                await on_status("Understanding database schema...")
+                await on_status("Analyzing schema & synthesizing SQL with AI agents...")
 
-            # Load schema if not pre-loaded
-            if not context.schema_context and db:
-                schema_data = await schema_introspector.get_schema_context(
-                    connection_id, None, db
-                )
-                context.schema_context = schema_data
+            global _langgraph_pipeline
+            if _langgraph_pipeline is None:
+                _langgraph_pipeline = build_graph()
 
-            result = await self.schema_agent.execute(context)
-            if not result.success:
-                context.error = f"Schema agent failed: {result.message}"
-                return context
+            initial_state: AgentState = {
+                "user_id": "chat_user",
+                "user_role": "admin",
+                "question": query,
+                "db_dialect": db_type or "sqlite",
+                "connection_id": connection_id,
+                "conversation_history": conversation_history or [],
+                "sql_gen_attempts": 0,
+            }
 
-            logger.info(f"Schema agent: {result.message}")
+            # Invoke compiled LangGraph pipeline
+            final_state = _langgraph_pipeline.invoke(initial_state)
 
-            # ── Step 2–3: Generation → Validation Loop ────────
-            for attempt in range(context.max_retries):
-                if on_status:
-                    await on_status(
-                        f"Generating SQL...{' (retry ' + str(attempt) + ')' if attempt > 0 else ''}"
-                    )
+            # Extract outputs from LangGraph state into AgentContext
+            context.relevant_tables = list(final_state.get("relevant_schema", {}).keys())
+            context.generated_sql = final_state.get("generated_sql") or ""
+            context.optimized_sql = final_state.get("optimized_sql") or ""
+            context.optimization_notes = final_state.get("optimization_notes") or []
+            context.explanation = final_state.get("final_answer") or final_state.get("explanation") or ""
+            context.follow_up_suggestions = final_state.get("suggested_followups") or []
+            context.error = final_state.get("error")
 
-                gen_result = await self.generation_agent.execute(context)
-                if not gen_result.success:
-                    context.error = f"Generation agent failed: {gen_result.message}"
-                    return context
+            # Process query execution rows into columns & rows structure
+            raw_results = final_state.get("query_result") or []
+            if raw_results and isinstance(raw_results, list) and isinstance(raw_results[0], dict):
+                cols = list(raw_results[0].keys())
+                rows = raw_results
+                context.query_results = {
+                    "columns": cols,
+                    "rows": rows,
+                    "row_count": len(rows),
+                }
+            elif raw_results and isinstance(raw_results, list) and isinstance(raw_results[0], (list, tuple)):
+                cols = [f"col_{i+1}" for i in range(len(raw_results[0]))]
+                rows = [dict(zip(cols, r)) for r in raw_results]
+                context.query_results = {
+                    "columns": cols,
+                    "rows": rows,
+                    "row_count": len(rows),
+                }
+            else:
+                context.query_results = {"columns": [], "rows": [], "row_count": 0}
 
-                logger.info(f"Generation agent (attempt {attempt + 1}): {gen_result.message}")
-
-                if on_status:
-                    await on_status("Validating query...")
-
-                val_result = await self.validation_agent.execute(context)
-                if context.is_valid:
-                    logger.info("Validation passed")
-                    break
-
-                context.validation_retries = attempt + 1
-                logger.warning(
-                    f"Validation failed (attempt {attempt + 1}): {context.validation_errors}"
-                )
-
-                if attempt == context.max_retries - 1:
-                    context.error = (
-                        f"Query validation failed after {context.max_retries} attempts: "
-                        + "; ".join(context.validation_errors)
-                    )
-                    return context
-
-            # ── Step 4: Optimization ──────────────────────────
-            if on_status:
-                await on_status("Optimizing query...")
-
-            opt_result = await self.optimization_agent.execute(context)
-            logger.info(f"Optimization agent: {opt_result.message}")
-
-            # ── Step 5: Query Execution ───────────────────────
-            if on_status:
-                await on_status("Executing query...")
-
-            engine = connection_manager.get_engine(connection_id)
-            if engine is None:
-                context.error = "Database engine not found. Connection may need to be re-established."
-                return context
-
-            sql_to_execute = context.optimized_sql or context.generated_sql
-
-            try:
-                results = await query_executor.execute(engine, sql_to_execute)
-                context.query_results = results
-                context.execution_time_ms = results.get("execution_time_ms", 0)
-            except Exception as e:
-                context.error = f"Query execution failed: {str(e)}"
-                return context
-
-            # ── Step 6: Explanation ────────────────────────────
-            if on_status:
-                await on_status("Generating explanation...")
-
-            exp_result = await self.explanation_agent.execute(context)
-            logger.info(f"Explanation agent: {exp_result.message}")
-
-            # ── Step 7: Visualization Suggestion ──────────────
+            # Generate visualization suggestions if rows exist
             if context.query_results.get("columns") and context.query_results.get("rows"):
-                context.chart_suggestion = viz_suggester.suggest(
-                    columns=context.query_results["columns"],
-                    rows=context.query_results["rows"],
-                    sql=sql_to_execute,
-                )
+                try:
+                    context.chart_suggestion = viz_suggester.suggest(
+                        columns=context.query_results["columns"],
+                        rows=context.query_results["rows"],
+                        sql=context.optimized_sql or context.generated_sql,
+                    )
+                except Exception as viz_err:
+                    logger.warning(f"Viz suggestion failed: {viz_err}")
+                    context.chart_suggestion = {"chart_type": "table", "x_axis": None, "y_axis": None, "config": {}}
 
             return context
 

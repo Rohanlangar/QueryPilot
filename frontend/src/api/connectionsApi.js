@@ -38,7 +38,7 @@ export async function updateConnection(connectionId, body) {
   if (body.port !== undefined) payload.port = Number(body.port);
   if (body.database !== undefined) payload.database_name = body.database;
   if (body.username !== undefined) payload.username = body.username;
-  if (body.password !== undefined) payload.password = body.password;
+  if (body.password) payload.password = body.password;
   if (body.ssl !== undefined) payload.ssl_enabled = body.ssl;
 
   const { data } = await api.patch(`/api/connections/${connectionId}`, payload);
@@ -51,6 +51,20 @@ export async function deleteConnection(connectionId) {
 
 export async function testConnection(connectionId) {
   const { data } = await api.post(`/api/connections/${connectionId}/test`);
+  return data; // { success, message, latency_ms }
+}
+
+export async function testConnectionParams(body) {
+  const { data } = await api.post('/api/connections/test-params', {
+    db_type: body.dbType,
+    host: body.host,
+    port: Number(body.port),
+    database_name: body.database,
+    username: body.username,
+    password: body.password,
+    ssl_enabled: body.ssl || false,
+    extra_params: body.extraParams || null,
+  });
   return data; // { success, message, latency_ms }
 }
 
