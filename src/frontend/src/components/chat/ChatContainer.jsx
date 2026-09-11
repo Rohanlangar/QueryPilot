@@ -4,6 +4,7 @@ import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import Chip from '../common/Chip';
 import Loader from '../common/Loader';
+import PipelineLoader from './PipelineLoader';
 
 const SAMPLE_QUESTIONS = [
   "What were last month's top 10 products by revenue?",
@@ -67,10 +68,8 @@ export default function ChatContainer({
             ))}
             {isLoading && (
               <div className="message message-agent">
-                <div className="agent-response">
-                  <div className="agent-section" style={{ padding: '16px' }}>
-                    <Loader size="sm" />
-                  </div>
+                <div className="agent-response" style={{ width: '100%', maxWidth: '640px' }}>
+                  <PipelineLoader />
                 </div>
               </div>
             )}

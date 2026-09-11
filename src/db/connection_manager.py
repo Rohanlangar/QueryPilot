@@ -231,11 +231,14 @@ def get_connection(connection_id: Optional[str] = None) -> Optional[Dict[str, An
 def get_connection_engine(connection_id: Optional[str] = None) -> Engine:
     """Get the SQLAlchemy engine for a registered connection.
 
-    Defaults to local SQLite company.db if not found.
+    Defaults to local SQLite company.db only when connection_id is None.
     """
     conn = get_connection(connection_id)
     if conn:
         return conn["engine"]
+
+    if connection_id:
+        raise ValueError(f"No active database engine registered for connection_id: '{connection_id}'")
 
     from db.connectors import get_engine_for_dialect
     return get_engine_for_dialect("sqlite")
@@ -244,11 +247,14 @@ def get_connection_engine(connection_id: Optional[str] = None) -> Engine:
 def get_connection_schema(connection_id: Optional[str] = None) -> Dict[str, Any]:
     """Get reflected schema metadata for a registered connection.
 
-    Defaults to local SQLite company.db schema if not found.
+    Defaults to local SQLite company.db schema only when connection_id is None.
     """
     conn = get_connection(connection_id)
     if conn:
         return conn["schema"]
+
+    if connection_id:
+        return {}
 
     from db.connectors import get_full_schema_metadata
     return get_full_schema_metadata()

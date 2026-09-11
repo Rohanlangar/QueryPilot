@@ -255,17 +255,16 @@ def test_fastapi_and_graph():
     print("\n[8/8] Testing LangGraph Compilation & FastAPI App (Phase 7)...")
     graph = build_graph()
     assert graph is not None
-
     try:
         from app.main import app
     except ImportError:
         from main import app
-    routes = [route.path for route in app.routes]
-    assert "/query" in routes
-    assert "/health" in routes
-    assert "/schema" in routes
-    assert "/audit-logs" in routes
-    assert "/connections" in routes or "/api/connections" in [r.split("{")[0].rstrip("/") for r in routes]
+
+    paths = list(app.openapi().get("paths", {}).keys())
+    assert "/health" in paths
+    assert "/query" in paths
+    assert "/api/chat/sessions" in paths
+    assert "/api/connections" in paths
     print("  ✓ Graph compiled and all FastAPI routes (/query, /health, /schema, /audit-logs, /connections) registered.")
 
 

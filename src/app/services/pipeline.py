@@ -81,8 +81,55 @@ class AgentPipeline:
         )
 
         try:
-            if on_status:
-                await on_status("Analyzing schema & synthesizing SQL with AI agents...")
+            # Ensure external connection is registered in db.connection_manager
+            if connection_id and db:
+                try:
+                    from db.connection_manager import _ACTIVE_CONNECTIONS, register_database, DatabaseConfig
+                    from app.core.security import decrypt_credential
+                    from app.models.connection import Connection
+                    from sqlalchemy import select
+
+                    if connection_id not in _ACTIVE_CONNECTIONS:
+                        stmt = select(Connection).where(Connection.id == connection_id)
+                        res = await db.execute(stmt)
+                        conn_record = res.scalar_one_or_none()
+                        if conn_record:
+                            decrypted_pwd = decrypt_credential(conn_record.encrypted_password) if conn_record.encrypted_password else None
+                            cfg = DatabaseConfig(
+                                connection_id=conn_record.id,
+                                db_type=conn_record.db_type or db_type or "sqlite",
+                                host=conn_record.host,
+                                port=conn_record.port,
+                                database=conn_record.database_name,
+                                username=conn_record.username,
+                                password=decrypted_pwd,
+                                ssl_mode="require" if conn_record.ssl_enabled else None,
+                            )
+                            register_database(cfg)
+                except Exception as conn_err:
+                    logger.warning(f"Could not auto-register connection {connection_id}: {conn_err}")
+
+            async def _emit_status(stage_id: str, label: str, index: int, total: int = 6):
+                if not on_status:
+                    return
+                status_payload = {
+                    "type": "stage",
+                    "stage": stage_id,
+                    "label": label,
+                    "index": index,
+                    "total": total,
+                    "message": label,
+                }
+                try:
+                    import inspect
+                    if inspect.iscoroutinefunction(on_status):
+                        await on_status(status_payload)
+                    else:
+                        on_status(status_payload)
+                except Exception as cb_err:
+                    logger.warning(f"Status callback failed: {cb_err}")
+
+            await _emit_status("schema", "Analyzing database schema...", 0, 6)
 
             global _langgraph_pipeline
             if _langgraph_pipeline is None:
@@ -98,8 +145,30 @@ class AgentPipeline:
                 "sql_gen_attempts": 0,
             }
 
-            # Invoke compiled LangGraph pipeline
-            final_state = _langgraph_pipeline.invoke(initial_state)
+            import time
+            start_time = time.perf_counter()
+
+            # Stream LangGraph pipeline step by step to emit live stage progress
+            final_state = dict(initial_state)
+            for step in _langgraph_pipeline.stream(initial_state):
+                for node_name, node_output in step.items():
+                    if isinstance(node_output, dict):
+                        final_state.update(node_output)
+
+                    # Trigger next stage status update based on completed node
+                    if node_name == "schema":
+                        await _emit_status("sql_gen", "Synthesizing SQL query...", 1, 6)
+                    elif node_name == "sql_gen":
+                        await _emit_status("validate", "Validating query & security rules...", 2, 6)
+                    elif node_name == "validate":
+                        await _emit_status("optimize", "Optimizing execution plan...", 3, 6)
+                    elif node_name in ("optimize", "post_opt_validate"):
+                        await _emit_status("execute", "Executing query on database...", 4, 6)
+                    elif node_name == "execute":
+                        await _emit_status("explain", "Generating business explanation...", 5, 6)
+
+            context.execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            await _emit_status("complete", "Pipeline complete", 6, 6)
 
             # Extract outputs from LangGraph state into AgentContext
             context.relevant_tables = list(final_state.get("relevant_schema", {}).keys())
@@ -109,6 +178,20 @@ class AgentPipeline:
             context.explanation = final_state.get("final_answer") or final_state.get("explanation") or ""
             context.follow_up_suggestions = final_state.get("suggested_followups") or []
             context.error = final_state.get("error")
+
+            # Map confidence_label to numeric score and reason
+            conf_label = final_state.get("confidence_label")
+            conf_map = {"High": 0.95, "Medium": 0.65, "Low": 0.35}
+            if isinstance(conf_label, str) and conf_label in conf_map:
+                context.confidence_score = conf_map[conf_label]
+            elif isinstance(conf_label, (int, float)) and conf_label > 0:
+                context.confidence_score = float(conf_label)
+            else:
+                context.confidence_score = 0.90 if context.optimized_sql or context.generated_sql else 0.50
+
+            context.confidence_reason = final_state.get("confidence_reason") or (
+                f"{conf_label or 'High'} Confidence based on AST validation and database schema verification"
+            )
 
             # Process query execution rows into columns & rows structure
             raw_results = final_state.get("query_result") or []

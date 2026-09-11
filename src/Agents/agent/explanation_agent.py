@@ -58,6 +58,7 @@ def explanation_node(state: dict) -> dict:
     return {
         "explanation": result.explanation,
         "confidence_label": result.confidence_label,
+        "confidence_reason": getattr(result, "confidence_reason", ""),
         "suggested_followups": result.suggested_followups,
         "final_answer": result.explanation,
     }
