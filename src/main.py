@@ -29,58 +29,24 @@ from db.connectors import get_full_schema_metadata, DEFAULT_DB_FILE
 from db.seed import seed_database
 
 # ---------------------------------------------------------------------------
-# App Initialization
+# App Initialization (Master app from app.main)
 # ---------------------------------------------------------------------------
 
-app = FastAPI(
-    title="QueryPilot API",
-    description="Multi-Agent Text-to-SQL System using LangGraph and Local Qwen LLMs via Ollama",
-    version="1.0.0",
-)
-
-# Enable CORS for frontend integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Compiled LangGraph pipeline instance
-_graph = None
-
-# Audit DB path
-AUDIT_DB_PATH = os.path.join(os.path.dirname(__file__), "query_audit.db")
-
-# Simple memory cache: {normalized_question: (timestamp, response_data)}
-_cache: Dict[str, tuple[float, dict]] = {}
-CACHE_TTL_SECONDS = 300  # 5 minutes
-
-# Mount full QueryPilot application routers for frontend compatibility
 try:
-    from app.main import (
-        auth_router,
-        connections_router,
-        chat_router,
-        schema_router,
-        admin_router,
-        audit_router,
-        ws_router,
-        agent_query_router,
-        seed_default_roles,
+    from app.main import app
+except Exception as _err:
+    app = FastAPI(
+        title="QueryPilot API",
+        description="Multi-Agent Text-to-SQL System using LangGraph and Local Qwen LLMs via Ollama",
+        version="1.0.0",
     )
-    from app.db.database import init_db
-    app.include_router(auth_router)
-    app.include_router(connections_router)
-    app.include_router(chat_router)
-    app.include_router(schema_router)
-    app.include_router(admin_router)
-    app.include_router(audit_router)
-    app.include_router(ws_router)
-    app.include_router(agent_query_router)
-except Exception as _import_err:
-    print(f"Notice: App routes not mounted to root main: {_import_err}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 # ---------------------------------------------------------------------------
