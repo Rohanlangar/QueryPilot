@@ -143,9 +143,36 @@ const useConnectionStore = create((set, get) => ({
     set({ activeConnectionId: id });
   },
 
+  toggleConnectionActive: async (id) => {
+    const conn = get().connections.find((c) => c.id === id);
+    if (!conn) return;
+    const nextState = !conn.isActive;
+    // Optimistic update
+    set((state) => ({
+      connections: state.connections.map((c) =>
+        c.id === id ? { ...c, isActive: nextState } : c
+      ),
+    }));
+    try {
+      await connectionsApi.toggleConnectionActive(id);
+    } catch (err) {
+      // Revert on error
+      set((state) => ({
+        connections: state.connections.map((c) =>
+          c.id === id ? { ...c, isActive: !nextState } : c
+        ),
+      }));
+    }
+  },
+
   getActiveConnection: () => {
     const state = get();
-    return state.connections.find((c) => c.id === state.activeConnectionId) || null;
+    return state.connections.find((c) => c.id === state.activeConnectionId) || state.connections.find((c) => c.isActive) || null;
+  },
+
+  getActiveConnections: () => {
+    const state = get();
+    return state.connections.filter((c) => c.isActive !== false);
   },
 }));
 
@@ -162,7 +189,8 @@ function mapConnectionFromBackend(conn) {
     database: conn.database_name,
     username: conn.username,
     ssl: conn.ssl_enabled,
-    status: conn.is_active ? 'connected' : 'disconnected',
+    isActive: conn.is_active !== undefined ? Boolean(conn.is_active) : true,
+    status: conn.last_tested_at ? 'connected' : 'connected',
     lastTested: conn.last_tested_at || null,
     schema: null,
     createdAt: conn.created_at,

@@ -56,11 +56,76 @@ export default function MessageBubble({ message, onSuggestedSelect }) {
           </div>
         )}
 
+        {/* Sources Used Badge List */}
+        {message.sourcesUsed && message.sourcesUsed.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              marginBottom: '10px',
+              borderRadius: '6px',
+              background: 'rgba(52, 211, 153, 0.08)',
+              border: '1px solid rgba(52, 211, 153, 0.25)',
+              fontSize: '12px',
+            }}
+          >
+            <span style={{ fontWeight: 600, color: 'var(--color-secondary)' }}>Sources used:</span>
+            {message.sourcesUsed.map((s, idx) => (
+              <span
+                key={idx}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+              >
+                <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>✓</span>
+                <strong style={{ color: 'var(--color-secondary)' }}>{s.database}</strong>
+                {s.tables && s.tables.length > 0 && (
+                  <span style={{ color: 'var(--color-muted)' }}>→ {s.tables.join(', ')}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Federated Execution Plan Visual */}
+        {message.executionPlan && message.isFederated && (
+          <div
+            style={{
+              padding: '10px 14px',
+              marginBottom: '12px',
+              borderRadius: '6px',
+              background: '#0d1117',
+              border: '1px solid #30363d',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              lineHeight: '18px',
+              color: '#7ee787',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            <div style={{ color: '#8b949e', fontWeight: 600, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Federated Execution Plan:
+            </div>
+            {message.executionPlan}
+          </div>
+        )}
+
         {/* SQL Block - Always Visible */}
         {message.sql && (
           <SQLBlock
             sql={message.sql}
             optimizedSql={message.optimizedSql}
+            databaseQueries={message.databaseQueries}
           />
         )}
 

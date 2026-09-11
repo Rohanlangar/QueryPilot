@@ -7,11 +7,11 @@ import Loader from '../common/Loader';
 import PipelineLoader from './PipelineLoader';
 
 const SAMPLE_QUESTIONS = [
+  "Which products have high demand but low inventory?",
+  "Compare order metrics with actual payments",
   "What were last month's top 10 products by revenue?",
-  "Show me the monthly sales trend for 2024",
-  "Which region has the highest customer churn rate?",
-  "Compare Q3 vs Q4 performance by department",
   "List all orders above $10,000 in the last 30 days",
+  "Show me the monthly sales trend for 2024",
   "What's the average delivery time by category?",
 ];
 

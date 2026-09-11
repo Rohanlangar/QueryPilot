@@ -40,8 +40,14 @@ export async function updateConnection(connectionId, body) {
   if (body.username !== undefined) payload.username = body.username;
   if (body.password) payload.password = body.password;
   if (body.ssl !== undefined) payload.ssl_enabled = body.ssl;
+  if (body.is_active !== undefined) payload.is_active = body.is_active;
 
   const { data } = await api.patch(`/api/connections/${connectionId}`, payload);
+  return data;
+}
+
+export async function toggleConnectionActive(connectionId) {
+  const { data } = await api.post(`/api/connections/${connectionId}/toggle-active`);
   return data;
 }
 

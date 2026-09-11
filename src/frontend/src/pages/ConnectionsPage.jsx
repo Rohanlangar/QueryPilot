@@ -47,6 +47,7 @@ export default function ConnectionsPage() {
     updateConnection,
     removeConnection,
     setActiveConnection,
+    toggleConnectionActive,
     testConnection,
   } = useConnectionStore();
 
@@ -187,6 +188,45 @@ export default function ConnectionsPage() {
           </Button>
         </div>
 
+        {/* Multi-Database Federated Status Banner */}
+        {connections.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 18px',
+              marginBottom: 'var(--space-md)',
+              borderRadius: '8px',
+              background: 'rgba(52, 211, 153, 0.08)',
+              border: '1px solid rgba(52, 211, 153, 0.25)',
+              color: 'var(--color-text)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <CheckCircle size={18} style={{ color: 'var(--color-secondary)' }} />
+              <div>
+                <strong>Federated Multi-DB Mode Active: </strong>
+                <span style={{ color: 'var(--color-muted)' }}>
+                  {connections.filter((c) => c.isActive).length} of {connections.length} database(s) currently available to the AI agent simultaneously.
+                </span>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: '12px',
+                padding: '3px 8px',
+                borderRadius: '12px',
+                background: 'rgba(52, 211, 153, 0.15)',
+                color: 'var(--color-secondary)',
+                fontWeight: 600,
+              }}
+            >
+              {connections.filter((c) => c.isActive).length} Active
+            </span>
+          </div>
+        )}
+
         {connections.length === 0 ? (
           <Card bordered surface style={{ textAlign: 'center', padding: 'var(--space-xl) var(--space-lg)' }}>
             <Database size={48} style={{ color: 'var(--color-muted)', margin: '0 auto 16px' }} />
@@ -206,8 +246,8 @@ export default function ConnectionsPage() {
               <Card
                 key={conn.id}
                 bordered
-                className={`connection-card ${conn.id === activeConnectionId ? 'card-surface' : ''}`}
-                style={conn.id === activeConnectionId ? { borderColor: 'var(--color-secondary)' } : {}}
+                className={`connection-card ${conn.isActive ? 'card-surface' : ''}`}
+                style={conn.isActive ? { borderColor: 'rgba(52, 211, 153, 0.5)' } : { opacity: 0.8 }}
               >
                 <div className="connection-card-header">
                   <div className="connection-card-icon">
@@ -248,16 +288,20 @@ export default function ConnectionsPage() {
                   <Button variant="ghost" size="sm" icon={Trash2} onClick={() => handleDelete(conn.id)} style={{ color: 'var(--color-error)' }}>
                     Delete
                   </Button>
-                  {conn.id !== activeConnectionId && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setActiveConnection(conn.id)}
-                      style={{ marginLeft: 'auto' }}
-                    >
-                      Set Active
-                    </Button>
-                  )}
+                  <Button
+                    variant={conn.isActive ? 'secondary' : 'ghost'}
+                    size="sm"
+                    icon={conn.isActive ? CheckCircle : AlertCircle}
+                    onClick={() => toggleConnectionActive(conn.id)}
+                    style={{
+                      marginLeft: 'auto',
+                      borderColor: conn.isActive ? 'var(--color-secondary)' : undefined,
+                      color: conn.isActive ? 'var(--color-secondary)' : 'var(--color-muted)',
+                    }}
+                    title={conn.isActive ? 'Active for AI queries (Click to deactivate)' : 'Inactive (Click to activate)'}
+                  >
+                    {conn.isActive ? 'Active' : 'Inactive'}
+                  </Button>
                 </div>
               </Card>
             ))}

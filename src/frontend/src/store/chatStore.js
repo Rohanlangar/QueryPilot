@@ -241,12 +241,26 @@ function mapQueryResponseToMessage(response) {
     msg.chartSuggestion = response.chart_suggestion;
   }
 
-  // Pipeline status (always show completed for HTTP responses)
-  msg.pipelineStatus = [
+  // Multi-Database Federation metadata
+  msg.sourcesUsed = response.sources_used || null;
+  msg.databaseQueries = response.database_queries || null;
+  msg.executionPlan = response.execution_plan || null;
+  msg.isFederated = Boolean(response.is_federated);
+
+  // Pipeline status (show completed federated stages)
+  msg.pipelineStatus = response.is_federated ? [
+    { name: 'Discovery', status: 'complete', detail: 'Discovered schemas across active databases' },
+    { name: 'Planning', status: 'complete', detail: 'Planned federated execution & join keys' },
+    { name: 'Generate', status: 'complete', detail: 'Generated database-specific queries' },
+    { name: 'Validate', status: 'complete', detail: 'Validation passed across all schemas' },
+    { name: 'Execute', status: 'complete', detail: 'Executed on respective database engines' },
+    { name: 'Federate', status: 'complete', detail: 'Cross-database join & merge complete' },
+    { name: 'Explain', status: 'complete', detail: 'Unified business analysis synthesized' },
+  ] : [
     { name: 'Schema', status: 'complete', detail: 'Schema analysis complete' },
     { name: 'Generate', status: 'complete', detail: 'SQL generated' },
     { name: 'Validate', status: 'complete', detail: response.was_cached ? 'Served from cache' : 'Validation passed' },
-    { name: 'Optimize', status: 'complete', detail: 'Query optimized' },
+    { name: 'Execute', status: 'complete', detail: 'Query executed on database' },
     { name: 'Explain', status: 'complete', detail: 'Explanation generated' },
   ];
 
