@@ -72,3 +72,8 @@ export async function getConnectionSchema(connectionId) {
   const { data } = await api.get(`/api/connections/${connectionId}/schema`);
   return data; // { connection_id, database_name, tables, total_tables }
 }
+
+export async function getConnectionERD(connectionId) {
+  const { data } = await api.get(`/api/connections/${connectionId}/erd`);
+  return data; // { connection_id, database_name, db_type, tables, relationships, is_sample }
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Database, Plus, Wifi, WifiOff, Loader2, Pencil, Trash2, Zap,
-  CheckCircle, XCircle, AlertCircle,
+  CheckCircle, XCircle, AlertCircle, Network,
 } from 'lucide-react';
 import PageLayout from '../components/layout/PageLayout';
 import Card from '../components/common/Card';
@@ -10,6 +10,7 @@ import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import Modal from '../components/common/Modal';
 import Toggle from '../components/common/Toggle';
+import SchemaVisualizerModal from '../components/schema/SchemaVisualizerModal';
 import useConnectionStore from '../store/connectionStore';
 import { testConnectionParams } from '../api/connectionsApi';
 
@@ -57,6 +58,7 @@ export default function ConnectionsPage() {
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [visualizingConn, setVisualizingConn] = useState(null);
 
   useEffect(() => {
     fetchConnections();
@@ -242,6 +244,16 @@ export default function ConnectionsPage() {
                   <Button variant="ghost" size="sm" icon={Zap} onClick={() => testConnection(conn.id)}>
                     Test
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Network}
+                    onClick={() => setVisualizingConn(conn)}
+                    title="Visualize Database Schema & ERD"
+                    style={{ color: '#06b6d4' }}
+                  >
+                    Visualize
+                  </Button>
                   <Button variant="ghost" size="sm" icon={Pencil} onClick={() => handleOpenEdit(conn)}>
                     Edit
                   </Button>
@@ -404,6 +416,13 @@ export default function ConnectionsPage() {
             )}
           </div>
         </Modal>
+
+        {/* Database Schema Visualizer (ERD) Modal */}
+        <SchemaVisualizerModal
+          isOpen={Boolean(visualizingConn)}
+          onClose={() => setVisualizingConn(null)}
+          connection={visualizingConn}
+        />
       </div>
     </PageLayout>
   );
