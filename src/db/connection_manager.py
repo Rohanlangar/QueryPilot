@@ -283,3 +283,98 @@ def delete_connection(connection_id: str) -> bool:
         del _ACTIVE_CONNECTIONS[connection_id]
         return True
     return False
+
+
+def get_all_active_connections() -> Dict[str, Dict[str, Any]]:
+    """Retrieve all currently active registered connections."""
+    return dict(_ACTIVE_CONNECTIONS)
+
+
+def get_unified_schema_metadata(active_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Build a unified logical schema catalog of all active databases.
+
+    Returns:
+        {
+            db_id: {
+                "connection_id": db_id,
+                "database_name": db_name,
+                "dialect": dialect,
+                "tables": {table_name: table_metadata, ...}
+            },
+            ...
+        }
+    """
+    targets = _ACTIVE_CONNECTIONS
+    if active_ids:
+        targets = {k: v for k, v in _ACTIVE_CONNECTIONS.items() if k in active_ids}
+
+    # If no external connections are registered, provide local company.db as default
+    if not targets:
+        from db.connectors import get_full_schema_metadata
+        default_schema = get_full_schema_metadata()
+        return {
+            "default": {
+                "connection_id": "default",
+                "database_name": "company_db",
+                "dialect": "sqlite",
+                "tables": default_schema,
+            }
+        }
+
+    unified: Dict[str, Any] = {}
+    for c_id, conn_data in targets.items():
+        conf = conn_data["config"]
+        db_name = conf.database or c_id
+        unified[c_id] = {
+            "connection_id": c_id,
+            "database_name": db_name,
+            "dialect": conn_data.get("dialect", conf.db_type.lower()),
+            "tables": conn_data.get("schema", {}),
+        }
+    return unified
+
+
+def detect_cross_database_relationships(unified_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Detect potential cross-database relationships based on shared column names / entity keys.
+
+    For instance:
+      order_db.orders.product_id <───> inventory_db.inventory.product_id
+      order_db.orders.order_id   <───> payment_db.payments.order_id
+    """
+    relationships: List[Dict[str, Any]] = []
+    # Map: column_name -> list of (db_id, table_name)
+    column_index: Dict[str, List[tuple]] = {}
+
+    for db_id, db_meta in unified_schema.items():
+        tables = db_meta.get("tables", {})
+        for t_name, t_meta in tables.items():
+            cols = t_meta.get("columns", {})
+            for col_name in cols.keys():
+                col_lower = col_name.lower()
+                # Consider id/key columns as potential join keys
+                if col_lower.endswith("_id") or col_lower in ("id", "code", "sku", "uuid", "reference_no", "email"):
+                    column_index.setdefault(col_lower, []).append((db_id, t_name, col_name))
+
+    # Cross-product across different databases
+    seen_pairs = set()
+    for col_key, occurrences in column_index.items():
+        for i in range(len(occurrences)):
+            for j in range(i + 1, len(occurrences)):
+                db1, t1, col1 = occurrences[i]
+                db2, t2, col2 = occurrences[j]
+                if db1 != db2:
+                    pair_key = tuple(sorted([(db1, t1, col1), (db2, t2, col2)]))
+                    if pair_key not in seen_pairs:
+                        seen_pairs.add(pair_key)
+                        relationships.append({
+                            "join_key": col_key,
+                            "source_db": db1,
+                            "source_table": t1,
+                            "source_column": col1,
+                            "target_db": db2,
+                            "target_table": t2,
+                            "target_column": col2,
+                            "description": f"{db1}.{t1}.{col1} <-> {db2}.{t2}.{col2}",
+                        })
+
+    return relationships

@@ -43,19 +43,53 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new chat session tied to a database connection."""
-    # Verify connection exists and belongs to user
-    result = await db.execute(
-        select(Connection).where(
-            Connection.id == body.connection_id,
-            Connection.user_id == user.id,
+    # Resolve connection_id: use provided, or pick any active connection for user
+    conn_id = body.connection_id
+    if conn_id:
+        result = await db.execute(
+            select(Connection).where(
+                Connection.id == conn_id,
+                Connection.user_id == user.id,
+            )
         )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Connection not found")
+        if not result.scalar_one_or_none():
+            conn_id = None
+
+    if not conn_id:
+        # Pick any active connection for user
+        res = await db.execute(
+            select(Connection).where(Connection.user_id == user.id, Connection.is_active == True)
+        )
+        active_c = res.scalars().first()
+        if active_c:
+            conn_id = active_c.id
+        else:
+            any_res = await db.execute(select(Connection).where(Connection.user_id == user.id))
+            any_c = any_res.scalars().first()
+            if any_c:
+                conn_id = any_c.id
+            else:
+                # Create a default connection for user so session FK constraint is satisfied
+                from app.core.security import encrypt_credential
+                conn_id = f"conn_{user.id[:8]}_default"
+                new_c = Connection(
+                    id=conn_id,
+                    user_id=user.id,
+                    name="Enterprise DB",
+                    db_type="sqlite",
+                    host="localhost",
+                    port=5432,
+                    database_name="order_db.db",
+                    username="admin",
+                    encrypted_password=encrypt_credential("admin123"),
+                    is_active=True,
+                )
+                db.add(new_c)
+                await db.flush()
 
     session = await session_manager.create_session(
         user_id=user.id,
-        connection_id=body.connection_id,
+        connection_id=conn_id,
         title=body.title or "New Conversation",
         db=db,
     )
@@ -209,20 +243,26 @@ async def send_message(
         for m in context_messages
     ]
 
-    # Ensure engine is ready
-    try:
-        await connection_manager.create_engine(conn)
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Could not connect to database: {str(e)}",
-        )
+    # Load all active connections for this user to enable federated querying
+    res = await db.execute(
+        select(Connection).where(Connection.user_id == user.id, Connection.is_active == True)
+    )
+    active_conns = res.scalars().all()
+    active_ids = [c.id for c in active_conns]
+    primary_conn = active_conns[0] if active_conns else conn
 
-    # Run the agent pipeline
+    # Ensure engine is ready for primary connection
+    try:
+        await connection_manager.create_engine(primary_conn)
+    except Exception as e:
+        logger.warning(f"Could not initialize primary connection engine: {e}")
+
+    # Run the agent pipeline across active connections
     pipeline_result = await agent_pipeline.run(
         query=body.content,
-        connection_id=conn.id,
-        db_type=conn.db_type,
+        connection_id=primary_conn.id if primary_conn else conn.id,
+        active_connection_ids=active_ids,
+        db_type=primary_conn.db_type if primary_conn else conn.db_type,
         conversation_history=conversation_history,
         db=db,
     )
@@ -323,12 +363,16 @@ async def send_message(
         sql=sql_executed,
         results=results.get("rows") if results else None,
         columns=results.get("columns") if results else None,
-        row_count=results.get("row_count") if results else None,
+        row_count=pipeline_result.query_results.get("row_count", 0) if pipeline_result.query_results else results.get("row_count"),
         execution_time_ms=pipeline_result.execution_time_ms,
         confidence=pipeline_result.confidence_score,
         confidence_reason=pipeline_result.confidence_reason,
         chart_suggestion=pipeline_result.chart_suggestion,
         follow_up_suggestions=pipeline_result.follow_up_suggestions,
+        sources_used=pipeline_result.sources_used or None,
+        database_queries=pipeline_result.database_queries or None,
+        execution_plan=pipeline_result.execution_plan_diagram or None,
+        is_federated=pipeline_result.is_federated,
         was_cached=False,
     )
 

@@ -213,6 +213,11 @@ def explanation_node(state: dict) -> dict:
         ),
     ]
 
+    # Check for federated sources
+    sources_used = state.get("sources_used", [])
+    is_federated = state.get("is_federated", False)
+    diagram = state.get("execution_plan_diagram", "")
+
     try:
         result: ExplanationOutput = structured_llm.invoke(messages)
         candidate_exp = result.explanation
@@ -224,19 +229,33 @@ def explanation_node(state: dict) -> dict:
 
         followups = result.suggested_followups if result.suggested_followups else default_followups
 
+        # If federated query, enrich explanation with sources attribution if not already present
+        if is_federated and sources_used and "database" not in final_exp.lower():
+            src_str = ", ".join(f"<code>{s.get('database')}</code>" for s in sources_used)
+            final_exp = f"<p><strong>Federated Analysis:</strong> Combined data from {src_str} via application-level join.</p>\n" + final_exp
+
         return {
             "explanation": final_exp,
             "confidence_label": result.confidence_label,
             "confidence_reason": getattr(result, "confidence_reason", "Verified against schema & SQL AST"),
             "suggested_followups": followups,
             "final_answer": final_exp,
+            "sources_used": sources_used,
+            "execution_plan_diagram": diagram,
         }
     except Exception as e:
         logger.warning(f"Explanation LLM invocation failed, using SQL explanation fallback: {e}")
+        final_exp = fallback_explanation
+        if is_federated and sources_used:
+            src_str = ", ".join(f"<code>{s.get('database')}</code>" for s in sources_used)
+            final_exp = f"<p><strong>Federated Analysis:</strong> Combined data from {src_str} via application-level join.</p>\n" + final_exp
+
         return {
-            "explanation": fallback_explanation,
+            "explanation": final_exp,
             "confidence_label": "High" if sql_query else "Low",
             "confidence_reason": "SQL syntax verified and parsed into clause breakdown",
             "suggested_followups": default_followups,
-            "final_answer": fallback_explanation,
+            "final_answer": final_exp,
+            "sources_used": sources_used,
+            "execution_plan_diagram": diagram,
         }

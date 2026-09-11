@@ -1,60 +1,76 @@
 # agent/schema_agent.py
-"""Schema Selection Agent — Graph Node.
+"""Schema Discovery Agent — Graph Node.
 
-Narrows the full DB schema down to only the tables needed to answer
-the user's question. Uses embedding pre-filter (retrieval.py) to get
-candidates, then an LLM to select the precise subset.
+Retrieves and catalogs schema metadata across ALL active connected databases.
+Builds a unified logical representation of available schemas including
+table names, column types, primary keys, foreign keys, and cross-database
+key correlations.
 """
 
-from langchain_ollama import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage
+import logging
+from typing import Dict, Any
 
-from agent.Prompts.schema_prompt import SCHEMA_SYSTEM_PROMPT, build_schema_user_prompt
-from agent.Schema.schema_agent_schema import SchemaSelectionOutput
-from db.retrieval import retrieve_candidate_tables
-from config import SCHEMA_AGENT_MODEL, OLLAMA_BASE_URL
+from db.connection_manager import (
+    get_unified_schema_metadata,
+    detect_cross_database_relationships,
+    get_connection,
+)
+
+logger = logging.getLogger("querypilot.federation")
 
 
 def schema_node(state: dict) -> dict:
-    """LangGraph node: select relevant tables from embedding-ranked candidates.
+    """LangGraph node: discover and catalog schemas across all active databases.
 
     Reads:
         state["question"]
+        state.get("active_connections")
         state.get("connection_id")
 
     Returns partial state update:
-        {"relevant_schema": {table_name: table_metadata, ...}}
+        {
+            "unified_schema": {db_id: db_meta, ...},
+            "cross_db_relationships": [...],
+            "db_dialect": str,
+            "relevant_schema": {table_name: table_meta, ...},
+        }
     """
-    # Step 1: Embedding pre-filter — narrow target DB schema to top-k candidates
-    candidate_schema = retrieve_candidate_tables(
-        state["question"],
-        top_k=25,
-        connection_id=state.get("connection_id"),
+    active_ids = state.get("active_connections")
+    conn_id = state.get("connection_id")
+
+    # If single connection_id is explicitly targeted and no active_connections list
+    if conn_id and not active_ids:
+        active_ids = [conn_id]
+
+    # Discover unified schema across all active connections
+    unified_schema = get_unified_schema_metadata(active_ids)
+    cross_db_rels = detect_cross_database_relationships(unified_schema)
+
+    # Flatten all tables for backward compatibility
+    flattened_tables = {}
+    for db_id, db_data in unified_schema.items():
+        for t_name, t_meta in db_data.get("tables", {}).items():
+            key = t_name if t_name not in flattened_tables else f"{db_id}.{t_name}"
+            flattened_tables[key] = t_meta
+
+    # Determine primary dialect
+    primary_dialect = "sqlite"
+    for db_data in unified_schema.values():
+        dialect = db_data.get("dialect", "").lower()
+        if "postgres" in dialect:
+            primary_dialect = "postgresql"
+            break
+        elif dialect:
+            primary_dialect = dialect
+
+    logger.info(
+        f"[SCHEMA DISCOVERY] Discovered {len(unified_schema)} database(s) with {len(flattened_tables)} total table(s). "
+        f"Cross-DB joins detected: {len(cross_db_rels)}"
     )
 
-    # Step 2: LLM selects the precise subset via structured output
-    llm = ChatOllama(
-        model=SCHEMA_AGENT_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0,
-    )
-    structured_llm = llm.with_structured_output(
-        SchemaSelectionOutput, method="json_schema"
-    )
-
-    messages = [
-        SystemMessage(content=SCHEMA_SYSTEM_PROMPT),
-        HumanMessage(
-            content=build_schema_user_prompt(state["question"], candidate_schema)
-        ),
-    ]
-    result: SchemaSelectionOutput = structured_llm.invoke(messages)
-
-    # Step 3: Filter candidates to only the LLM-selected tables
-    relevant = {
-        t: candidate_schema[t]
-        for t in result.relevant_tables
-        if t in candidate_schema
+    return {
+        "unified_schema": unified_schema,
+        "cross_db_relationships": cross_db_rels,
+        "db_dialect": primary_dialect,
+        "relevant_schema": flattened_tables,
     }
-
-    return {"relevant_schema": relevant}

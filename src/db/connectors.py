@@ -298,58 +298,88 @@ def mask_pii_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def execute_query_node(state: dict) -> dict:
-    """Execute the optimized SQL against the database engine.
+    """Execute read-only queries against their respective target database engines.
 
-    Applies row capping and PII masking before results leave this node.
-    Records any execution_error to enable the graph feedback retry loop.
+    Supports both single database and multi-database execution.
+    Applies row capping and PII masking on each returned dataset.
     """
-    sql = state.get("optimized_sql") or state.get("generated_sql")
-    dialect = state.get("db_dialect", "sqlite")
+    import logging
+    logger = logging.getLogger("querypilot.federation")
 
-    if not sql or not sql.strip():
+    from db.connection_manager import get_connection_engine
+
+    database_queries = state.get("database_queries", {})
+    fallback_sql = state.get("optimized_sql") or state.get("generated_sql")
+
+    if not database_queries and fallback_sql:
+        target_db = state.get("connection_id") or "default"
+        database_queries = {target_db: fallback_sql}
+
+    if not database_queries:
         return {
+            "database_results": {},
             "query_result": [],
             "row_count": 0,
             "execution_error": "No SQL query provided for execution.",
             "error": "No SQL query provided for execution.",
         }
 
+    database_results: Dict[str, Any] = {}
+    primary_results = []
+    primary_row_count = 0
+
     try:
-        from db.connection_manager import get_connection_engine
-        engine = get_connection_engine(state.get("connection_id"))
-        with engine.connect() as conn:
-            result_proxy = conn.execute(text(sql))
-            if result_proxy.returns_rows:
-                keys = list(result_proxy.keys())
-                raw_rows = []
-                for row in result_proxy.fetchmany(DEFAULT_ROW_LIMIT):
-                    row_dict = {}
-                    for k, v in zip(keys, row):
-                        if hasattr(v, "isoformat"):
-                            row_dict[k] = v.isoformat()
-                        elif isinstance(v, (bytes, bytearray)):
-                            row_dict[k] = v.hex()
-                        else:
-                            row_dict[k] = v
-                    raw_rows.append(row_dict)
-                masked_rows = mask_pii_rows(raw_rows)
-                return {
-                    "query_result": masked_rows,
-                    "row_count": len(masked_rows),
-                    "execution_error": None,
-                    "error": None,
-                }
-            else:
-                conn.commit()
-                return {
-                    "query_result": [{"status": "Success", "rows_affected": result_proxy.rowcount}],
-                    "row_count": result_proxy.rowcount,
-                    "execution_error": None,
-                    "error": None,
-                }
+        for db_id, sql in database_queries.items():
+            if not sql or not sql.strip():
+                continue
+
+            engine = get_connection_engine(db_id if db_id != "default" else state.get("connection_id"))
+            with engine.connect() as conn:
+                result_proxy = conn.execute(text(sql))
+                if result_proxy.returns_rows:
+                    keys = list(result_proxy.keys())
+                    raw_rows = []
+                    for row in result_proxy.fetchmany(DEFAULT_ROW_LIMIT):
+                        row_dict = {}
+                        for k, v in zip(keys, row):
+                            if hasattr(v, "isoformat"):
+                                row_dict[k] = v.isoformat()
+                            elif isinstance(v, (bytes, bytearray)):
+                                row_dict[k] = v.hex()
+                            else:
+                                row_dict[k] = v
+                        raw_rows.append(row_dict)
+                    masked_rows = mask_pii_rows(raw_rows)
+                    database_results[db_id] = {
+                        "columns": keys,
+                        "rows": masked_rows,
+                        "row_count": len(masked_rows),
+                    }
+                    logger.info(f"[EXECUTION] Database '{db_id}': Success ({len(masked_rows)} rows returned)")
+                    if not primary_results:
+                        primary_results = masked_rows
+                        primary_row_count = len(masked_rows)
+                else:
+                    database_results[db_id] = {
+                        "columns": ["status", "rows_affected"],
+                        "rows": [{"status": "Success", "rows_affected": result_proxy.rowcount}],
+                        "row_count": result_proxy.rowcount,
+                    }
+                    logger.info(f"[EXECUTION] Database '{db_id}': Statement executed ({result_proxy.rowcount} rows affected)")
+
+        return {
+            "database_results": database_results,
+            "query_result": primary_results,
+            "row_count": primary_row_count,
+            "execution_error": None,
+            "error": None,
+        }
+
     except Exception as e:
         err_msg = str(e)
+        logger.error(f"[EXECUTION] Error during execution: {err_msg}")
         return {
+            "database_results": database_results,
             "query_result": [],
             "row_count": 0,
             "execution_error": err_msg,

@@ -140,6 +140,8 @@ async def update_connection(
         conn.ssl_enabled = body.ssl_enabled
     if body.extra_params is not None:
         conn.extra_params = body.extra_params
+    if body.is_active is not None:
+        conn.is_active = body.is_active
 
     # Invalidate cached engine since connection params changed
     await connection_manager.close_connection(connection_id)
@@ -220,4 +222,57 @@ async def get_connection_schema(
         "database_name": conn.database_name,
         "tables": tables,
         "total_tables": len(tables),
+    }
+
+
+@router.post("/{connection_id}/toggle-active", response_model=ConnectionResponse)
+async def toggle_connection_active(
+    connection_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle whether a connection is active for multi-database query federation."""
+    result = await db.execute(
+        select(Connection).where(
+            Connection.id == connection_id,
+            Connection.user_id == user.id,
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    conn.is_active = not conn.is_active
+    await db.commit()
+    await db.refresh(conn)
+    return conn
+
+
+@router.get("/active/schemas")
+async def get_all_active_schemas(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get schemas for all active database connections for the current user."""
+    result = await db.execute(
+        select(Connection).where(
+            Connection.user_id == user.id,
+            Connection.is_active == True,
+        )
+    )
+    active_conns = result.scalars().all()
+    schemas = {}
+    for conn in active_conns:
+        tables = await schema_introspector.get_tables(conn.id, db)
+        schemas[conn.database_name or conn.name] = {
+            "connection_id": conn.id,
+            "database_name": conn.database_name,
+            "db_type": conn.db_type,
+            "tables": tables,
+            "table_count": len(tables),
+        }
+
+    return {
+        "active_count": len(active_conns),
+        "databases": schemas,
     }

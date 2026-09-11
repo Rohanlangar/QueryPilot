@@ -50,6 +50,7 @@ class QueryRequest(BaseModel):
     user_role: str = Field(default="admin", description="Role of the user for RBAC ('admin', 'analyst', 'viewer')")
     db_dialect: str = Field(default="sqlite", description="Database dialect (default: sqlite)")
     connection_id: Optional[str] = Field(default=None, description="Registered connection ID (e.g. 'prod_postgres'). Defaults to primary DB if omitted.")
+    active_connections: Optional[List[str]] = Field(default=None, description="List of active connection IDs to query across simultaneously")
 
 
 class QueryResponse(BaseModel):
@@ -65,6 +66,10 @@ class QueryResponse(BaseModel):
     row_count: Optional[int] = 0
     validation_passed: bool = True
     validation_errors: List[str] = []
+    sources_used: Optional[List[Dict[str, Any]]] = None
+    database_queries: Optional[Dict[str, str]] = None
+    execution_plan: Optional[str] = None
+    is_federated: Optional[bool] = False
     cached: bool = False
     execution_time_ms: float
     error: Optional[str] = None
@@ -109,6 +114,7 @@ def execute_query(req: QueryRequest):
         "question": req.question,
         "db_dialect": dialect,
         "connection_id": req.connection_id,
+        "active_connections": req.active_connections,
         "conversation_history": [],
         "sql_gen_attempts": 0,
     }
@@ -133,6 +139,10 @@ def execute_query(req: QueryRequest):
             "row_count": final_state.get("row_count", 0),
             "validation_passed": validation_passed,
             "validation_errors": final_state.get("validation_errors", []),
+            "sources_used": final_state.get("sources_used"),
+            "database_queries": final_state.get("database_queries"),
+            "execution_plan": final_state.get("execution_plan_diagram"),
+            "is_federated": final_state.get("is_federated", False),
             "cached": False,
             "execution_time_ms": elapsed_ms,
             "error": final_state.get("error"),

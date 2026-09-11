@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 class ChatSessionCreate(BaseModel):
     """Create a new chat session."""
-    connection_id: str
+    connection_id: Optional[str] = None
     title: Optional[str] = "New Conversation"
 
 
@@ -45,6 +45,10 @@ class ChatMessageResponse(BaseModel):
     chart_config_json: Optional[str] = None
     follow_up_suggestions_json: Optional[str] = None
     error_message: Optional[str] = None
+    sources_used: Optional[List[Dict[str, Any]]] = None
+    database_queries: Optional[Dict[str, str]] = None
+    execution_plan: Optional[str] = None
+    is_federated: Optional[bool] = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -53,7 +57,7 @@ class ChatMessageResponse(BaseModel):
 class ChatSessionResponse(BaseModel):
     """Chat session summary."""
     id: str
-    connection_id: str
+    connection_id: Optional[str] = None
     title: str
     summary: Optional[str] = None
     is_active: bool
@@ -67,7 +71,7 @@ class ChatSessionResponse(BaseModel):
 class ChatSessionDetailResponse(BaseModel):
     """Chat session with messages."""
     id: str
-    connection_id: str
+    connection_id: Optional[str] = None
     title: str
     summary: Optional[str] = None
     is_active: bool
@@ -91,6 +95,10 @@ class QueryResponse(BaseModel):
     confidence_reason: Optional[str] = None
     chart_suggestion: Optional[dict] = None
     follow_up_suggestions: Optional[List[str]] = None
+    sources_used: Optional[List[Dict[str, Any]]] = None
+    database_queries: Optional[Dict[str, str]] = None
+    execution_plan: Optional[str] = None
+    is_federated: Optional[bool] = False
     was_cached: bool = False
 
 

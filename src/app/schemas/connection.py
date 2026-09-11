@@ -48,6 +48,7 @@ class ConnectionUpdate(BaseModel):
     password: Optional[str] = None
     ssl_enabled: Optional[bool] = None
     extra_params: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class ConnectionResponse(BaseModel):

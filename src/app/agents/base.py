@@ -59,6 +59,12 @@ class AgentContext:
     # ── Error State ───────────────────────────────────────────
     error: Optional[str] = None
 
+    # ── Federation / Multi-Database Metadata ───────────────────
+    is_federated: bool = False
+    sources_used: List[Dict[str, Any]] = field(default_factory=list)
+    database_queries: Dict[str, str] = field(default_factory=dict)
+    execution_plan_diagram: str = ""
+
 
 @dataclass
 class AgentResult:
