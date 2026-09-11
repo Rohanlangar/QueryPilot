@@ -43,9 +43,11 @@ def route_after_validation(state: AgentState) -> str:
 
     Returns:
         "execute"    — validation passed, proceed to execution
-        "regenerate" — validation failed, retries remaining → back to sql_gen
-        "fail"       — validation failed, max retries exhausted → explain failure
+        "fail"       — security incident detected or max retries exhausted → explain/halt
+        "regenerate" — validation failed (syntax/schema), retries remaining → back to sql_gen
     """
+    if state.get("security_incident"):
+        return "fail"
     if state.get("validation_passed"):
         return "execute"
     if state.get("sql_gen_attempts", 0) >= MAX_SQL_GEN_RETRIES:

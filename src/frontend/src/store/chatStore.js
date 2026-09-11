@@ -155,6 +155,7 @@ function mapMessageFromBackend(msg) {
   if (msg.role === 'assistant') {
     mapped.sql = msg.sql_generated || null;
     mapped.optimizedSql = msg.sql_executed || null;
+    mapped.securityIncident = msg.security_incident || null;
 
     // Parse results JSON
     if (msg.results_json) {
@@ -241,11 +242,12 @@ function mapQueryResponseToMessage(response) {
     msg.chartSuggestion = response.chart_suggestion;
   }
 
-  // Multi-Database Federation metadata
+  // Multi-Database Federation & Security metadata
   msg.sourcesUsed = response.sources_used || null;
   msg.databaseQueries = response.database_queries || null;
   msg.executionPlan = response.execution_plan || null;
   msg.isFederated = Boolean(response.is_federated);
+  msg.securityIncident = response.security_incident || response.message?.security_incident || null;
 
   // Pipeline status (show completed federated stages)
   msg.pipelineStatus = response.is_federated ? [

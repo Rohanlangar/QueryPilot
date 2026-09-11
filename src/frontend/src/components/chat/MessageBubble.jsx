@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatTimestamp } from '../../utils/dateUtils';
 import AgentPipeline from './AgentPipeline';
 import SQLBlock from './SQLBlock';
@@ -6,7 +7,141 @@ import QueryExplainer from './QueryExplainer';
 import SuggestedQuestions from './SuggestedQuestions';
 import ConfidenceBadge from '../common/ConfidenceBadge';
 import ResultsInsights from './ResultsInsights';
-import { BookOpen, Play, AlertCircle } from 'lucide-react';
+import { BookOpen, Play, AlertCircle, ShieldAlert, ExternalLink } from 'lucide-react';
+
+function SecurityIncidentCard({ incident, rawExplanation, timestamp }) {
+  const navigate = useNavigate();
+
+  const threatType = incident?.threat_type || 'CYBER_ATTACK_INTERCEPTED';
+  const incidentId = incident?.incident_id || 'SEC-ALERT-BLOCKED';
+  const severity = incident?.severity || 'CRITICAL';
+  const policy = incident?.policy_violated || 'SEC-POL-01: Zero-Trust Database Guardrail';
+  const mitigation = incident?.mitigation || 'Query execution terminated pre-flight. Malicious payload blocked from database engines.';
+  const tokens = incident?.detected_tokens || [];
+
+  return (
+    <div
+      style={{
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)',
+        border: '1px solid rgba(239, 68, 68, 0.45)',
+        boxShadow: '0 0 25px rgba(239, 68, 68, 0.18)',
+        borderRadius: '12px',
+        padding: '18px 20px',
+        color: '#f8fafc',
+        marginBottom: '10px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid rgba(239, 68, 68, 0.6)',
+              color: '#ef4444',
+            }}
+          >
+            <ShieldAlert size={22} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', letterSpacing: '0.02em' }}>
+                CYBER-ATTACK INTERCEPTED &amp; NEUTRALIZED
+              </span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: 'rgba(239, 68, 68, 0.25)',
+                  border: '1px solid #ef4444',
+                  color: '#fee2e2',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', display: 'inline-block', boxShadow: '0 0 8px #ef4444' }}></span>
+                {severity}
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+              Ref: <code style={{ color: '#cbd5e1', fontWeight: 600 }}>{incidentId}</code> • Pre-Flight Deterministic Enforcement
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/audit')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: '#fecaca',
+            fontSize: '12px',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          title="Inspect incident in SOC 2 Audit Trail"
+        >
+          <span>View Audit Trail</span>
+          <ExternalLink size={13} />
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '10px',
+          marginBottom: '14px',
+        }}
+      >
+        <div style={{ background: 'rgba(0, 0, 0, 0.35)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Threat Vector</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#f87171', marginTop: '3px' }}>{threatType}</div>
+        </div>
+        <div style={{ background: 'rgba(0, 0, 0, 0.35)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Gate</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#60a5fa', marginTop: '3px' }}>Agent 3: AST Security Gate</div>
+        </div>
+        <div style={{ background: 'rgba(0, 0, 0, 0.35)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Target DB Integrity</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#34d399', marginTop: '3px' }}>100% UNTOUCHED</div>
+        </div>
+        <div style={{ background: 'rgba(0, 0, 0, 0.35)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Execution Time</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#fbbf24', marginTop: '3px' }}>0 ms (Aborted Pre-Flight)</div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: '12px', color: '#e2e8f0', lineHeight: '18px', background: 'rgba(0, 0, 0, 0.25)', padding: '10px 12px', borderRadius: '8px', borderLeft: '3px solid #ef4444' }}>
+        <div><strong style={{ color: '#fca5a5' }}>Policy Violated:</strong> {policy}</div>
+        <div style={{ marginTop: '4px', color: '#cbd5e1' }}><strong>Mitigation:</strong> {mitigation}</div>
+      </div>
+
+      {tokens.length > 0 && (
+        <div style={{ marginTop: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ color: '#94a3b8' }}>Flagged Tokens:</span>
+          {tokens.map((t, idx) => (
+            <span key={idx} style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fee2e2', padding: '1px 7px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px' }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MessageBubble({ message, onSuggestedSelect }) {
   const [showExplanation, setShowExplanation] = useState(false);
@@ -17,6 +152,36 @@ export default function MessageBubble({ message, onSuggestedSelect }) {
       <div className="message message-user">
         <div className="message-bubble">
           {message.content}
+        </div>
+        <div className="message-meta">
+          <span className="message-time">{formatTimestamp(message.timestamp)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Intercepted Cyber-Attack / Security Incident
+  const isSecurityIncident = Boolean(
+    message.securityIncident ||
+    (message.error && (
+      message.explanation?.includes('CYBER-ATTACK') ||
+      message.explanation?.includes('SECURITY_INCIDENT') ||
+      message.explanation?.includes('Security violation') ||
+      message.explanation?.includes('prohibited') ||
+      message.explanation?.includes('Disallowed SQL keyword')
+    )) ||
+    message.explanation?.includes('CYBER-ATTACK INTERCEPTED')
+  );
+
+  if (isSecurityIncident) {
+    return (
+      <div className="message message-agent">
+        <div className="agent-response">
+          <SecurityIncidentCard
+            incident={message.securityIncident}
+            rawExplanation={message.explanation || message.content}
+            timestamp={message.timestamp}
+          />
         </div>
         <div className="message-meta">
           <span className="message-time">{formatTimestamp(message.timestamp)}</span>

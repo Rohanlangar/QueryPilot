@@ -1,6 +1,6 @@
 # agent/Schema/validation_schema.py
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Dict
 
 
 class ValidationResult(BaseModel):
@@ -13,3 +13,4 @@ class ValidationResult(BaseModel):
 
     passed: bool
     errors: List[str] = []
+    security_incident: Optional[dict] = None

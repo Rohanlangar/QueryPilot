@@ -199,6 +199,7 @@ class AgentPipeline:
             context.sources_used = final_state.get("sources_used") or []
             context.database_queries = final_state.get("database_queries") or {}
             context.execution_plan_diagram = final_state.get("execution_plan_diagram") or ""
+            context.security_incident = final_state.get("security_incident")
 
             # Map confidence_label to numeric score and reason
             conf_label = final_state.get("confidence_label")

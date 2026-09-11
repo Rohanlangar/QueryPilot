@@ -267,6 +267,42 @@ async def send_message(
         db=db,
     )
 
+    # Handle intercepted cyber-attack / security incident
+    if pipeline_result.security_incident:
+        inc = pipeline_result.security_incident
+        incident_explanation = pipeline_result.explanation or inc.get("description") or "Security policy violation detected."
+        error_msg = await session_manager.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=incident_explanation,
+            error_message=f"SECURITY_INCIDENT: {inc.get('threat_type')}",
+            db=db,
+        )
+
+        await audit_service.log_query(
+            db=db,
+            user_id=user.id,
+            session_id=session_id,
+            connection_id=conn.id,
+            natural_language_input=body.content,
+            sql_generated=pipeline_result.generated_sql,
+            error_message=f"[{inc.get('threat_type')}] {inc.get('policy_violated')}: {inc.get('description')}",
+            ip_address=request.client.host if request.client else None,
+            status="blocked",
+        )
+
+        msg_resp = ChatMessageResponse.model_validate(error_msg)
+        msg_resp.security_incident = inc
+
+        return QueryResponse(
+            message=msg_resp,
+            explanation=incident_explanation,
+            sql=pipeline_result.generated_sql or None,
+            confidence=0.99,
+            confidence_reason=f"Neutralized by {inc.get('blocked_by', 'Security Gate')}",
+            security_incident=inc,
+        )
+
     # Handle pipeline errors
     if pipeline_result.error:
         error_msg = await session_manager.add_message(

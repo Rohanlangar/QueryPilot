@@ -42,6 +42,7 @@ class AgentState(TypedDict, total=False):
     validation_passed: bool
     validation_errors: List[str]
     validation_details: Dict[str, Any]         # Per-database validation results
+    security_incident: Optional[Dict[str, Any]] # Incident details if blocked by security gate
 
     # ── Optimization Agent output ─────────────────────────────────────
     optimized_sql: str

@@ -3,7 +3,7 @@ Chat schemas — request/response models for chat and query endpoints.
 """
 
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from pydantic import BaseModel, Field
 
 
@@ -49,6 +49,7 @@ class ChatMessageResponse(BaseModel):
     database_queries: Optional[Dict[str, str]] = None
     execution_plan: Optional[str] = None
     is_federated: Optional[bool] = False
+    security_incident: Optional[Dict[str, Any]] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -100,6 +101,7 @@ class QueryResponse(BaseModel):
     execution_plan: Optional[str] = None
     is_federated: Optional[bool] = False
     was_cached: bool = False
+    security_incident: Optional[Dict[str, Any]] = None
 
 
 class ExplainSQLResponse(BaseModel):

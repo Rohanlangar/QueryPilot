@@ -58,6 +58,7 @@ class AgentContext:
 
     # ── Error State ───────────────────────────────────────────
     error: Optional[str] = None
+    security_incident: Optional[Dict[str, Any]] = None
 
     # ── Federation / Multi-Database Metadata ───────────────────
     is_federated: bool = False

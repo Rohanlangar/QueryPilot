@@ -189,6 +189,36 @@ def explanation_node(state: dict) -> dict:
     row_count = state.get("row_count", len(raw_results))
     question = state.get("question", "")
 
+    # Immediate short-circuit if a security incident was intercepted
+    if state.get("security_incident"):
+        inc = state["security_incident"]
+        threat = inc.get("threat_type", "SECURITY_VIOLATION")
+        pol = inc.get("policy_violated", "Enterprise Security Policy")
+        inc_id = inc.get("incident_id", "SEC-ALERT")
+        sec_explanation = (
+            f"**🚨 CYBER-ATTACK INTERCEPTED & NEUTRALIZED**\n\n"
+            f"- **Incident ID**: `{inc_id}`\n"
+            f"- **Threat Classification**: `{threat}` (Severity: {inc.get('severity', 'CRITICAL')})\n"
+            f"- **Enforced Policy**: {pol}\n"
+            f"- **Enforcement Gate**: {inc.get('blocked_by', 'Agent 3: Deterministic AST & RBAC Security Gate')}\n"
+            f"- **Database Integrity**: {inc.get('database_state', 'SAFE & UNTOUCHED (0 records altered)')}\n\n"
+            f"> **Mitigation**: {inc.get('mitigation', 'Pre-flight AST interceptor discarded execution plan. Zero commands dispatched to target database engines.')}"
+        )
+        return {
+            "explanation": sec_explanation,
+            "confidence_label": "High",
+            "confidence_reason": f"Attack neutralized by Pre-Flight AST Security Gate ({threat})",
+            "suggested_followups": [
+                "Run a safe read-only analytics query",
+                "Inspect SOC 2 audit logs for this incident",
+                "Verify RBAC permissions and user role",
+            ],
+            "final_answer": sec_explanation,
+            "sources_used": [],
+            "execution_plan_diagram": f"[BLOCKED] Pre-Flight Security Gate Intercepted {threat}",
+            "security_incident": inc,
+        }
+
     fallback_explanation = generate_sql_clause_explanation(sql_query, question, row_count)
     default_followups = generate_default_followups(sql_query, question)
 
