@@ -223,6 +223,14 @@ def extract_table_names(sql: str) -> List[str]:
     except Exception:
         pass
 
+    # Extract Common Table Expressions (CTEs) defined in WITH clauses
+    cte_pattern = re.compile(
+        r"\b(?:WITH\s+(?:RECURSIVE\s+)?|,)\s*([`\"\[]?[\w]+[`\"\]]?)\s+AS\s*\(",
+        re.IGNORECASE,
+    )
+    cte_matches = cte_pattern.findall(sql)
+    cte_names = {c.strip("`\"[]").lower() for c in cte_matches}
+
     # Regex fallback to ensure no tables were missed
     matches = _FALLBACK_TABLE_PATTERN.findall(sql)
     for m in matches:
@@ -231,7 +239,10 @@ def extract_table_names(sql: str) -> List[str]:
         if cleaned.upper() not in ("SELECT", "WHERE", "GROUP", "ORDER", "LIMIT", "HAVING", "SET", "VALUES"):
             tables.add(cleaned)
 
-    return sorted(list(tables))
+    # Exclude CTE aliases so they are not mistaken for physical tables
+    physical_tables = [t for t in tables if t.lower() not in cte_names]
+
+    return sorted(physical_tables)
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +315,8 @@ def execute_query_node(state: dict) -> dict:
         }
 
     try:
-        engine = get_engine_for_dialect(dialect)
+        from db.connection_manager import get_connection_engine
+        engine = get_connection_engine(state.get("connection_id"))
         with engine.connect() as conn:
             result_proxy = conn.execute(text(sql))
             if result_proxy.returns_rows:

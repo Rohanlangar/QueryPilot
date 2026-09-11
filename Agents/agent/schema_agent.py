@@ -20,12 +20,17 @@ def schema_node(state: dict) -> dict:
 
     Reads:
         state["question"]
+        state.get("connection_id")
 
     Returns partial state update:
         {"relevant_schema": {table_name: table_metadata, ...}}
     """
-    # Step 1: Embedding pre-filter — narrow full schema to top-k candidates
-    candidate_schema = retrieve_candidate_tables(state["question"], top_k=25)
+    # Step 1: Embedding pre-filter — narrow target DB schema to top-k candidates
+    candidate_schema = retrieve_candidate_tables(
+        state["question"],
+        top_k=25,
+        connection_id=state.get("connection_id"),
+    )
 
     # Step 2: LLM selects the precise subset via structured output
     llm = ChatOllama(

@@ -125,11 +125,17 @@ def test_rbac():
 
 def test_pii_and_execution():
     print("\n[5/7] Testing Table Extraction, PII Masking & Query Node (Phase 4)...")
-    # Table extraction
+    # Table extraction with CTE exclusion test
     sql = "SELECT e.first_name, d.name FROM employees e JOIN departments d ON e.department_id = d.id"
     tables = extract_table_names(sql)
     assert "employees" in tables
     assert "departments" in tables
+
+    cte_sql = "WITH member_counts AS (SELECT room_id FROM room_room_members) SELECT * FROM room_room r JOIN member_counts mc ON r.id = mc.room_id"
+    cte_tables = extract_table_names(cte_sql)
+    assert "member_counts" not in cte_tables, f"CTE was mistakenly extracted as a physical table: {cte_tables}"
+    assert "room_room" in cte_tables
+    assert "room_room_members" in cte_tables
 
     # PII masking
     sample_rows = [
@@ -202,8 +208,47 @@ def test_deterministic_validation():
     print("  ✓ Deterministic validation node & post-optimization validator passed all scenarios.")
 
 
+def test_connection_manager():
+    print("\n[7/8] Testing Dynamic Database Connection Manager...")
+    from db.connection_manager import (
+        DatabaseConfig,
+        test_connection,
+        register_database,
+        get_connection_schema,
+        list_registered_connections,
+        delete_connection,
+    )
+
+    # 1. Test connecting to SQLite
+    conf = DatabaseConfig(
+        connection_id="test_analytics_db",
+        db_type="sqlite",
+        database="company.db"
+    )
+    test_res = test_connection(conf)
+    assert test_res["success"] is True, f"Connection test failed: {test_res}"
+
+    # 2. Register DB & reflect schema
+    reg_res = register_database(conf)
+    assert reg_res["status"] == "connected"
+    assert reg_res["table_count"] == 8
+
+    # 3. Retrieve schema via connection ID
+    schema = get_connection_schema("test_analytics_db")
+    assert "departments" in schema
+    assert "orders" in schema
+
+    # 4. List connections
+    conns = list_registered_connections()
+    assert any(c["connection_id"] == "test_analytics_db" for c in conns)
+
+    # 5. Cleanup
+    delete_connection("test_analytics_db")
+    print("  ✓ Dynamic database testing, schema reflection, registration, and retrieval verified.")
+
+
 def test_fastapi_and_graph():
-    print("\n[7/7] Testing LangGraph Compilation & FastAPI App (Phase 7)...")
+    print("\n[8/8] Testing LangGraph Compilation & FastAPI App (Phase 7)...")
     graph = build_graph()
     assert graph is not None
 
@@ -213,7 +258,9 @@ def test_fastapi_and_graph():
     assert "/health" in routes
     assert "/schema" in routes
     assert "/audit-logs" in routes
-    print("  ✓ Graph compiled and FastAPI routes (/query, /health, /schema, /audit-logs) registered.")
+    assert "/connections" in routes
+    assert "/connections/test" in routes
+    print("  ✓ Graph compiled and all FastAPI routes (/query, /health, /schema, /audit-logs, /connections) registered.")
 
 
 if __name__ == "__main__":
@@ -226,7 +273,8 @@ if __name__ == "__main__":
     test_rbac()
     test_pii_and_execution()
     test_deterministic_validation()
+    test_connection_manager()
     test_fastapi_and_graph()
     print("\n" + "=" * 65)
-    print("ALL 7 TEST SUITES PASSED! System is fully operational.")
+    print("ALL 8 TEST SUITES PASSED! System is fully operational.")
     print("=" * 65)

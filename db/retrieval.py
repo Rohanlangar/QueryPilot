@@ -13,7 +13,7 @@ depends on the metadata cache being populated externally.
 import numpy as np
 from langchain_ollama import OllamaEmbeddings
 
-from db.connectors import get_full_schema_metadata
+from db.connection_manager import get_connection_schema
 from config import EMBEDDING_MODEL, OLLAMA_BASE_URL
 
 # Lazy-initialized embeddings client
@@ -38,13 +38,14 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return float(np.dot(a_arr, b_arr) / (np.linalg.norm(a_arr) * np.linalg.norm(b_arr) + 1e-10))
 
 
-def retrieve_candidate_tables(question: str, top_k: int = 25) -> dict:
-    """Narrow the full schema to the most relevant tables for the question.
+def retrieve_candidate_tables(question: str, top_k: int = 25, connection_id: str | None = None) -> dict:
+    """Narrow the active database schema to the most relevant tables for the question.
 
     Embeds each table description via nomic-embed-text (Ollama), computes
     cosine similarity against the question embedding, and returns the top-k.
+    Supports dynamic database selection via connection_id.
     """
-    all_tables = get_full_schema_metadata()
+    all_tables = get_connection_schema(connection_id)
 
     if not all_tables:
         return {}

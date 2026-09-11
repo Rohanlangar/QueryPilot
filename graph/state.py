@@ -18,6 +18,7 @@ class AgentState(TypedDict, total=False):
     user_id: str
     user_role: str
     question: str
+    connection_id: Optional[str]
     conversation_history: List[Dict]
 
     # ── Schema Agent output ────────────────────────────────────────────

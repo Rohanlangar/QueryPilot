@@ -62,11 +62,23 @@ CACHE_TTL_SECONDS = 300  # 5 minutes
 # Models
 # ---------------------------------------------------------------------------
 
+from db.connection_manager import (
+    DatabaseConfig,
+    test_connection,
+    register_database,
+    list_registered_connections,
+    get_connection,
+    get_connection_schema,
+    delete_connection,
+)
+
+
 class QueryRequest(BaseModel):
     question: str = Field(..., description="Natural language question to query against the database")
     user_id: str = Field(default="user_01", description="Identifier of the querying user")
     user_role: str = Field(default="admin", description="Role of the user for RBAC ('admin', 'analyst', 'viewer')")
-    db_dialect: str = Field(default="sqlite", description="Database dialect (default: sqlite)")
+    db_dialect: str = Field(default="sqlite", description="Database dialect ('sqlite', 'postgresql', 'mysql', etc.)")
+    connection_id: Optional[str] = Field(default=None, description="Registered connection ID (e.g. 'prod_postgres'). Defaults to primary DB if omitted.")
 
 
 class QueryResponse(BaseModel):
@@ -167,8 +179,13 @@ def startup_event():
         print("Demo database not found. Seeding company.db...")
         seed_database(DEFAULT_DB_FILE)
 
-    # 2. Warm up reflected schema metadata cache
+    # 2. Warm up reflected schema metadata cache & register default connection
     metadata = get_full_schema_metadata()
+    register_database(DatabaseConfig(
+        connection_id="default_sqlite",
+        db_type="sqlite",
+        database=DEFAULT_DB_FILE,
+    ))
     print(f"Schema metadata loaded with {len(metadata)} tables: {list(metadata.keys())}")
 
     # 3. Setup audit database
@@ -215,18 +232,88 @@ def get_audit_logs(limit: int = 50):
         return {"total": len(rows), "logs": rows}
 
 
+# ---------------------------------------------------------------------------
+# Database Connection Management Endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/connections/test")
+def test_db_connection(config: DatabaseConfig):
+    """Test connecting to an external database (PostgreSQL, MySQL, SQLite, etc.) without registering."""
+    result = test_connection(config)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
+@app.post("/connections")
+def register_db_connection(config: DatabaseConfig):
+    """Register and reflect a new database connection.
+
+    Connects to the database, extracts full schema (tables, columns, PKs, FKs, sample values),
+    and caches it for instant querying via /query.
+    """
+    try:
+        summary = register_database(config)
+        return {
+            "message": f"Database '{config.connection_id}' registered successfully.",
+            **summary
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to connect and reflect schema: {str(e)}")
+
+
+@app.get("/connections")
+def list_connections():
+    """List all registered databases and their reflected table counts."""
+    return {"connections": list_registered_connections()}
+
+
+@app.get("/connections/{connection_id}/schema")
+def get_db_connection_schema(connection_id: str):
+    """Retrieve the full reflected schema for a specific database connection."""
+    schema = get_connection_schema(connection_id)
+    if not schema:
+        raise HTTPException(status_code=404, detail=f"No schema found for connection '{connection_id}'.")
+    return {"connection_id": connection_id, "tables": schema}
+
+
+@app.delete("/connections/{connection_id}")
+def unregister_db_connection(connection_id: str):
+    """Remove a database connection from the active registry."""
+    if delete_connection(connection_id):
+        return {"message": f"Connection '{connection_id}' removed successfully."}
+    raise HTTPException(status_code=404, detail=f"Connection '{connection_id}' not found.")
+
+
+# ---------------------------------------------------------------------------
+# Main Query Execution Endpoint
+# ---------------------------------------------------------------------------
+
 @app.post("/query", response_model=QueryResponse)
 def execute_query(req: QueryRequest):
     """Run the multi-agent Text-to-SQL pipeline for a user question.
 
     Steps:
-      1. Check in-memory semantic TTL cache.
-      2. If miss, run LangGraph pipeline.
-      3. Log audit trail.
-      4. Return structured response.
+      1. Resolve target database connection.
+      2. Check in-memory semantic TTL cache.
+      3. If miss, run LangGraph pipeline on target DB schema.
+      4. Log audit trail.
+      5. Return structured response.
     """
     start_time = time.time()
-    norm_key = f"{req.user_role}:{req.question.strip().lower()}"
+    conn_id = req.connection_id or "default"
+    norm_key = f"{conn_id}:{req.user_role}:{req.question.strip().lower()}"
+
+    # Auto-resolve dialect if registered connection is provided
+    dialect = req.db_dialect
+    if req.connection_id:
+        conn_info = get_connection(req.connection_id)
+        if not conn_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Connection '{req.connection_id}' not found. Please register it via POST /connections first."
+            )
+        dialect = conn_info.get("dialect", req.db_dialect)
 
     # Check cache
     if norm_key in _cache:
@@ -241,7 +328,8 @@ def execute_query(req: QueryRequest):
         "user_id": req.user_id,
         "user_role": req.user_role,
         "question": req.question,
-        "db_dialect": req.db_dialect,
+        "db_dialect": dialect,
+        "connection_id": req.connection_id,
         "conversation_history": [],
         "sql_gen_attempts": 0,
     }
