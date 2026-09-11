@@ -15,6 +15,7 @@ from app.db.database import get_db
 from app.models.connection import Connection
 from app.models.user import User
 from app.core.security import get_current_user
+from app.core.json_utils import safe_json_dumps
 from app.services.session_manager import session_manager
 from app.services.semantic_cache import semantic_cache
 from app.services.audit_service import audit_service
@@ -262,9 +263,9 @@ async def send_message(
         if raw_rows and isinstance(raw_rows[0], (list, tuple)):
             cols = results["columns"]
             results["rows"] = [dict(zip(cols, r)) for r in raw_rows]
-    results_json = json.dumps(results) if results else None
-    follow_ups = json.dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
-    chart_config = json.dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
+    results_json = safe_json_dumps(results) if results else None
+    follow_ups = safe_json_dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
+    chart_config = safe_json_dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
 
     assistant_msg = await session_manager.add_message(
         session_id=session_id,
@@ -339,14 +340,26 @@ async def explain_sql(
 ):
     """
     'Explain This Query' reverse mode — paste an SQL query
-    and get a plain English explanation.
+    and get a plain English explanation and clause-by-clause breakdown.
     """
-    # STUB: In production, this would use the Explanation Agent
-    # to break down the SQL into natural language
+    from app.core.sql_explainer import get_clause_breakdown_list, generate_sql_explanation_html, analyze_sql_clauses
+
+    breakdown = get_clause_breakdown_list(body.sql)
+    html_explanation = generate_sql_explanation_html(body.sql)
+    clauses = analyze_sql_clauses(body.sql)
+    tables = [clauses["from"]] if clauses["from"] else []
+
+    # Calculate complexity
+    complexity = "simple"
+    if len(clauses.get("joins", [])) > 1 or clauses.get("having"):
+        complexity = "complex"
+    elif clauses.get("joins") or clauses.get("group_by"):
+        complexity = "moderate"
+
     return ExplainSQLResponse(
         original_sql=body.sql,
-        explanation="[STUB] SQL explanation not yet implemented — agent required.",
-        clause_breakdown=[],
-        tables_used=[],
-        complexity_rating="unknown",
+        explanation=html_explanation,
+        clause_breakdown=breakdown,
+        tables_used=tables,
+        complexity_rating=complexity,
     )

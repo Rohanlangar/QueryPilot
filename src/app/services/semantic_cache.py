@@ -112,8 +112,8 @@ class SemanticCache:
 
         sql_val = sql or sql_generated or ""
         if isinstance(result_json, (dict, list)):
-            import json
-            result_json_str = json.dumps(result_json)
+            from app.core.json_utils import safe_json_dumps
+            result_json_str = safe_json_dumps(result_json)
         else:
             result_json_str = result_json
 

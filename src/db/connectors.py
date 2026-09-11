@@ -321,7 +321,17 @@ def execute_query_node(state: dict) -> dict:
             result_proxy = conn.execute(text(sql))
             if result_proxy.returns_rows:
                 keys = list(result_proxy.keys())
-                raw_rows = [dict(zip(keys, row)) for row in result_proxy.fetchmany(DEFAULT_ROW_LIMIT)]
+                raw_rows = []
+                for row in result_proxy.fetchmany(DEFAULT_ROW_LIMIT):
+                    row_dict = {}
+                    for k, v in zip(keys, row):
+                        if hasattr(v, "isoformat"):
+                            row_dict[k] = v.isoformat()
+                        elif isinstance(v, (bytes, bytearray)):
+                            row_dict[k] = v.hex()
+                        else:
+                            row_dict[k] = v
+                    raw_rows.append(row_dict)
                 masked_rows = mask_pii_rows(raw_rows)
                 return {
                     "query_result": masked_rows,

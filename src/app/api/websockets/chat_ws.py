@@ -16,6 +16,7 @@ from app.db.database import get_db, async_session_factory
 from app.models.connection import Connection
 from app.models.user import User
 from app.core.security import decode_access_token
+from app.core.json_utils import safe_json_dumps
 from app.services.session_manager import session_manager
 from app.services.pipeline import agent_pipeline
 from app.services.connection_manager import connection_manager
@@ -140,9 +141,9 @@ async def websocket_chat(
                     else:
                         sql_executed = pipeline_result.optimized_sql or pipeline_result.generated_sql
                         results = pipeline_result.query_results
-                        results_json = json.dumps(results) if results else None
-                        follow_ups = json.dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
-                        chart_config = json.dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
+                        results_json = safe_json_dumps(results) if results else None
+                        follow_ups = safe_json_dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
+                        chart_config = safe_json_dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
 
                         assistant_msg = await session_manager.add_message(
                             session_id=session_id,

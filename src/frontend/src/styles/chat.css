@@ -271,15 +271,41 @@
 /* ---------- Explanation ---------- */
 .explanation-text {
   font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 26px;
+  font-size: 15px;
+  line-height: 24px;
   color: var(--color-on-surface);
+}
+
+.explanation-text p {
+  margin: 0 0 10px 0;
+  line-height: 1.6;
+}
+
+.explanation-text ul {
+  margin: 8px 0 12px 20px;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.explanation-text li {
+  margin-bottom: 8px;
+  line-height: 1.5;
 }
 
 .explanation-text strong {
   background-color: var(--color-tertiary-light);
-  padding: 1px 4px;
-  border-radius: 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.explanation-text code {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--color-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.88em;
 }
 
 .explanation-anomaly {
