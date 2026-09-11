@@ -1,0 +1,549 @@
+/* ============================================
+   Chat Page Styles
+   ============================================ */
+
+/* ---------- Chat Layout ---------- */
+.chat-page {
+  display: flex;
+  height: calc(100vh - var(--navbar-height));
+  overflow: hidden;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---------- Chat Messages ---------- */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-lg);
+  animation: fadeIn var(--transition-normal) ease;
+}
+
+.chat-empty-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-secondary-light);
+  border-radius: var(--rounded-md);
+  color: var(--color-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.chat-empty-title {
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.chat-empty-desc {
+  font-size: 16px;
+  color: var(--color-muted);
+  max-width: 400px;
+  margin-bottom: var(--space-md);
+}
+
+.chat-empty-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: center;
+  max-width: 600px;
+}
+
+/* ---------- Message Bubble ---------- */
+.message {
+  display: flex;
+  flex-direction: column;
+  max-width: 800px;
+  animation: slideUp var(--transition-normal) ease;
+}
+
+.message-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.message-agent {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: var(--rounded-sm);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.message-user .message-bubble {
+  background-color: var(--color-primary);
+  color: var(--color-neutral);
+  border-bottom-right-radius: 0;
+}
+
+.message-agent .message-bubble {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-border);
+  border-bottom-left-radius: 0;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 4px;
+}
+
+.message-time {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-muted);
+  letter-spacing: 0.08em;
+}
+
+/* ---------- Agent Response Sections ---------- */
+.agent-response {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 800px;
+}
+
+.agent-section {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--rounded-sm);
+  overflow: hidden;
+}
+
+.agent-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-background);
+}
+
+.agent-section-title {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agent-section-body {
+  padding: 14px;
+}
+
+/* ---------- SQL Block ---------- */
+.sql-block {
+  position: relative;
+}
+
+.sql-block pre {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.sql-block code {
+  font-size: 14px !important;
+  line-height: 22px !important;
+  font-family: 'DM Mono', 'Fira Code', monospace !important;
+}
+
+.sql-copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--rounded-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color var(--transition-fast);
+}
+
+.sql-copy-btn:hover {
+  color: var(--color-primary);
+}
+
+.sql-toggle {
+  display: flex;
+  gap: 2px;
+  background-color: var(--color-background);
+  border-radius: var(--rounded-sm);
+  padding: 2px;
+}
+
+.sql-toggle-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-muted);
+  border-radius: var(--rounded-sm);
+  transition: all var(--transition-fast);
+}
+
+.sql-toggle-btn.active {
+  background-color: var(--color-surface);
+  color: var(--color-primary);
+}
+
+/* ---------- Pipeline ---------- */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+.pipeline-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--rounded-full);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.pipeline-stage-complete {
+  background-color: var(--color-secondary-light);
+  color: var(--color-primary);
+}
+
+.pipeline-stage-active {
+  background-color: var(--color-secondary);
+  color: #000000;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-stage-pending {
+  background-color: var(--color-border);
+  color: var(--color-muted);
+}
+
+.pipeline-connector {
+  width: 16px;
+  height: 1px;
+  background-color: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ---------- Explanation ---------- */
+.explanation-text {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--color-on-surface);
+}
+
+.explanation-text strong {
+  background-color: var(--color-tertiary-light);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.explanation-anomaly {
+  margin-top: var(--space-sm);
+  padding: 10px 14px;
+  border-left: 3px solid var(--color-error);
+  background-color: var(--color-error-light);
+  border-radius: 0 var(--rounded-sm) var(--rounded-sm) 0;
+  font-size: 14px;
+  color: var(--color-primary);
+}
+
+/* ---------- Suggested Questions ---------- */
+.suggested-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+}
+
+/* ---------- Chat Input ---------- */
+.chat-input-container {
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.chat-input-field {
+  flex: 1;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--rounded-sm);
+  padding: 12px 16px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-on-surface);
+  outline: none;
+  resize: none;
+  min-height: 48px;
+  max-height: 120px;
+  transition: border-color var(--transition-fast);
+}
+
+.chat-input-field::placeholder {
+  color: var(--color-muted);
+}
+
+.chat-input-field:focus {
+  border-color: var(--color-secondary);
+}
+
+.chat-input-connection {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---------- Result Panel (right side) ---------- */
+.result-panel {
+  width: 400px;
+  border-left: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-panel-header {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.result-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+/* ---------- Data Table ---------- */
+.data-table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--color-background);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-primary);
+  border-bottom: 2px solid var(--color-border);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.data-table th:hover {
+  color: var(--color-secondary);
+}
+
+.data-table th .sort-icon {
+  margin-left: 4px;
+  opacity: 0.4;
+}
+
+.data-table th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--color-secondary);
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-on-surface);
+  white-space: nowrap;
+}
+
+.data-table tr:nth-child(even) {
+  background-color: var(--color-surface);
+}
+
+.data-table tr:nth-child(odd) {
+  background-color: var(--color-background);
+}
+
+.data-table-pii {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.data-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.data-table-pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* ---------- Chart Wrapper ---------- */
+.chart-wrapper {
+  padding: var(--space-sm);
+  min-height: 300px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.chart-type-picker {
+  display: flex;
+  gap: 2px;
+  background-color: var(--color-background);
+  border-radius: var(--rounded-sm);
+  padding: 2px;
+}
+
+.chart-type-btn {
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-muted);
+  border-radius: var(--rounded-sm);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-type-btn.active {
+  background-color: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.chart-type-btn:hover:not(.active) {
+  color: var(--color-primary);
+}
+
+/* ---------- Cache Banner ---------- */
+.cache-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 8px 14px;
+  background-color: var(--color-tertiary-light);
+  border-radius: var(--rounded-sm);
+  font-size: 13px;
+  color: var(--color-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.cache-banner-icon {
+  flex-shrink: 0;
+}
+
+/* ---------- Streaming Cursor ---------- */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background-color: var(--color-secondary);
+  margin-left: 2px;
+  animation: cursorBlink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1439px) {
+  .result-panel {
+    width: 340px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .result-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .chat-messages {
+    padding: var(--space-sm);
+  }
+
+  .chat-input-container {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .message {
+    max-width: 100%;
+  }
+}
