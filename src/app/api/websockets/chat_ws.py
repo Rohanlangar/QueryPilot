@@ -90,9 +90,12 @@ async def websocket_chat(
                 await websocket.send_json({"type": "error", "message": "Empty message"})
                 continue
 
-            # Create status callback for streaming updates
-            async def on_status(status_msg: str):
-                await websocket.send_json({"type": "status", "message": status_msg})
+            # Create status callback for streaming stage updates
+            async def on_status(status_payload):
+                if isinstance(status_payload, dict):
+                    await websocket.send_json(status_payload)
+                else:
+                    await websocket.send_json({"type": "status", "message": str(status_payload)})
 
             # Run pipeline with streaming status
             async with async_session_factory() as db:
@@ -135,12 +138,44 @@ async def websocket_chat(
                             "message": pipeline_result.error,
                         })
                     else:
+                        sql_executed = pipeline_result.optimized_sql or pipeline_result.generated_sql
+                        results = pipeline_result.query_results
+                        results_json = json.dumps(results) if results else None
+                        follow_ups = json.dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
+                        chart_config = json.dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
+
+                        assistant_msg = await session_manager.add_message(
+                            session_id=session_id,
+                            role="assistant",
+                            content=pipeline_result.explanation,
+                            sql_generated=pipeline_result.generated_sql,
+                            sql_executed=sql_executed,
+                            results_json=results_json,
+                            result_row_count=results.get("row_count") if results else None,
+                            execution_time_ms=pipeline_result.execution_time_ms,
+                            confidence_score=pipeline_result.confidence_score,
+                            confidence_reason=pipeline_result.confidence_reason,
+                            suggested_chart_type=pipeline_result.chart_suggestion.get("chart_type") if pipeline_result.chart_suggestion else None,
+                            chart_config_json=chart_config,
+                            follow_up_suggestions_json=follow_ups,
+                            db=db,
+                        )
+
                         await websocket.send_json({
                             "type": "result",
                             "data": {
+                                "message": {
+                                    "id": assistant_msg.id,
+                                    "role": assistant_msg.role,
+                                    "content": assistant_msg.content,
+                                    "created_at": assistant_msg.created_at.isoformat() if hasattr(assistant_msg.created_at, "isoformat") else str(assistant_msg.created_at),
+                                },
                                 "explanation": pipeline_result.explanation,
-                                "sql": pipeline_result.optimized_sql or pipeline_result.generated_sql,
-                                "results": pipeline_result.query_results,
+                                "sql": sql_executed,
+                                "results": results.get("rows") if results else None,
+                                "columns": results.get("columns") if results else None,
+                                "row_count": results.get("row_count") if results else None,
+                                "execution_time_ms": pipeline_result.execution_time_ms,
                                 "confidence": pipeline_result.confidence_score,
                                 "confidence_reason": pipeline_result.confidence_reason,
                                 "chart_suggestion": pipeline_result.chart_suggestion,
