@@ -1,0 +1,67 @@
+/* ============================================
+   QueryPilot Design Tokens
+   Based on: Greptile Editorial Tech
+   ============================================ */
+
+:root {
+  /* ---------- Colors ---------- */
+  --color-primary: #3D3B4F;
+  --color-primary-strong: #2F2D3F;
+  --color-secondary: #28E99F;
+  --color-tertiary: #ECFFA3;
+  --color-background: #E9E9E9;
+  --color-surface: #F5F5F5;
+  --color-on-surface: #3D3B4F;
+  --color-neutral: #EEEEEE;
+  --color-border: #E5E7EB;
+  --color-muted: #B9B8C2;
+  --color-error: #D94B4B;
+
+  /* Derived colors */
+  --color-secondary-hover: #1fd48e;
+  --color-error-light: rgba(217, 75, 75, 0.1);
+  --color-secondary-light: rgba(40, 233, 159, 0.1);
+  --color-tertiary-light: rgba(236, 255, 163, 0.3);
+  --color-overlay: rgba(61, 59, 79, 0.5);
+
+  /* ---------- Spacing ---------- */
+  --space-xs: 6px;
+  --space-sm: 14px;
+  --space-md: 32px;
+  --space-lg: 48px;
+  --space-xl: 152px;
+
+  /* ---------- Border Radius ---------- */
+  --rounded-none: 0px;
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 12px;
+  --rounded-xl: 16px;
+  --rounded-full: 9999px;
+
+  /* ---------- Font Families ---------- */
+  --font-display: 'Anybody', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+
+  /* ---------- Shadows (minimal — flat design) ---------- */
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* ---------- Transitions ---------- */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 400ms ease-out;
+
+  /* ---------- Z-Index Scale ---------- */
+  --z-sidebar: 100;
+  --z-navbar: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-tooltip: 500;
+
+  /* ---------- Layout ---------- */
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 64px;
+  --navbar-height: 64px;
+  --chat-input-height: 72px;
+  --max-content-width: 1400px;
+}

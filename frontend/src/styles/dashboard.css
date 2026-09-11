@@ -1,0 +1,223 @@
+/* ============================================
+   Dashboard / App Layout Styles
+   ============================================ */
+
+/* ---------- Navbar ---------- */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-md);
+  z-index: var(--z-navbar);
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.navbar-brand-icon {
+  width: 32px;
+  height: 32px;
+  background-color: var(--color-secondary);
+  border-radius: var(--rounded-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+}
+
+.navbar-brand-text {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-primary);
+  letter-spacing: -0.5px;
+}
+
+.navbar-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.navbar-link {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.12em;
+  color: var(--color-muted);
+  text-decoration: none;
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.navbar-link:hover,
+.navbar-link.active {
+  color: var(--color-primary);
+}
+
+.navbar-link.active {
+  border-bottom-color: var(--color-secondary);
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.navbar-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: fixed;
+  top: var(--navbar-height);
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  z-index: var(--z-sidebar);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-normal);
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xs);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--rounded-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  text-decoration: none;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-item:hover {
+  background-color: var(--color-background);
+}
+
+.sidebar-item.active {
+  background-color: var(--color-background);
+  border-left: 3px solid var(--color-secondary);
+  padding-left: 11px;
+}
+
+.sidebar-item-icon {
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.sidebar-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-meta {
+  font-size: 11px;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+/* ---------- Page Layout ---------- */
+.page-layout {
+  margin-top: var(--navbar-height);
+  min-height: calc(100vh - var(--navbar-height));
+}
+
+.page-layout-with-sidebar {
+  margin-left: var(--sidebar-width);
+}
+
+.page-content {
+  padding: var(--space-lg) var(--space-md);
+}
+
+.page-title {
+  font-family: var(--font-body);
+  font-size: 49px;
+  font-weight: 600;
+  line-height: 59px;
+  color: var(--color-primary);
+  margin-bottom: var(--space-md);
+}
+
+.page-subtitle {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--color-muted);
+  margin-bottom: var(--space-lg);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1023px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .page-layout-with-sidebar {
+    margin-left: 0;
+  }
+
+  .navbar-hamburger {
+    display: flex;
+  }
+}
+
+@media (max-width: 767px) {
+  .navbar-nav {
+    display: none;
+  }
+
+  .page-title {
+    font-size: 36px;
+    line-height: 44px;
+  }
+}

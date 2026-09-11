@@ -1,0 +1,145 @@
+/* ============================================
+   Connections Page Styles
+   ============================================ */
+
+.connections-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+.connection-card {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.connection-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.connection-card-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-secondary-light);
+  border-radius: var(--rounded-sm);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.connection-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.connection-card-name {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.connection-card-type {
+  font-size: 13px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.connection-card-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.connection-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connection-status-dot.connected {
+  background-color: var(--color-secondary);
+}
+
+.connection-status-dot.disconnected {
+  background-color: var(--color-error);
+}
+
+.connection-status-dot.testing {
+  background-color: var(--color-tertiary);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.connection-card-details {
+  font-size: 14px;
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.connection-card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---------- Connection Form ---------- */
+.connection-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.connection-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.connection-test-result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 10px 14px;
+  border-radius: var(--rounded-sm);
+  font-size: 14px;
+  margin-top: var(--space-xs);
+}
+
+.connection-test-result.success {
+  background-color: var(--color-secondary-light);
+  color: var(--color-primary);
+}
+
+.connection-test-result.error {
+  background-color: var(--color-error-light);
+  color: var(--color-error);
+}
+
+@media (max-width: 1023px) {
+  .connections-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .connections-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-form-row {
+    grid-template-columns: 1fr;
+  }
+}
