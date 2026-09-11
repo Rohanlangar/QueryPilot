@@ -19,6 +19,7 @@ pyodbc
 python-jose[cryptography]
 passlib[bcrypt]
 cryptography
+bcrypt
 
 # Data Validation
 pydantic
@@ -35,6 +36,7 @@ websockets
 
 # Utilities
 python-dateutil
+numpy
 
 # Testing
 pytest

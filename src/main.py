@@ -33,7 +33,8 @@ from db.seed import seed_database
 # ---------------------------------------------------------------------------
 
 try:
-    from app.main import app
+    from app.main import app, seed_default_roles
+    from app.db.database import init_db
 except Exception as _err:
     app = FastAPI(
         title="QueryPilot API",
@@ -47,6 +48,19 @@ except Exception as _err:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    async def init_db(): pass
+    async def seed_default_roles(): pass
+
+
+# Compiled LangGraph pipeline instance
+_graph = None
+
+# Audit DB path
+AUDIT_DB_PATH = os.path.join(os.path.dirname(__file__), "query_audit.db")
+
+# Simple memory cache: {normalized_question: (timestamp, response_data)}
+_cache: Dict[str, tuple[float, dict]] = {}
+CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
 # ---------------------------------------------------------------------------
