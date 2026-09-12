@@ -250,7 +250,7 @@ export default function ConnectionsPage() {
                     icon={Network}
                     onClick={() => setVisualizingConn(conn)}
                     title="Visualize Database Schema & ERD"
-                    style={{ color: '#06b6d4' }}
+                    style={{ color: '#020707ff' }}
                   >
                     Visualize
                   </Button>

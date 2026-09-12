@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Table, BarChart2, TrendingUp, Hash, Clock, Layers, Sparkles } from 'lucide-react';
 import DataTable from '../visualization/DataTable';
 import ChartRenderer from '../visualization/ChartRenderer';
+import { inferChartType } from '../../utils/chartInference';
 import Button from '../common/Button';
 
 export default function ResultsInsights({
@@ -98,7 +99,27 @@ export default function ResultsInsights({
     return takeaways;
   }, [data, columns]);
 
-  const hasChart = chartSuggestion && chartSuggestion.chart_type && chartSuggestion.chart_type !== 'table';
+  const inferredChart = useMemo(() => inferChartType(columns, data), [columns, data]);
+
+  const hasChart = useMemo(() => {
+    // 1. If backend gave a suggestion that is not table
+    if (chartSuggestion?.chart_type && chartSuggestion.chart_type !== 'table') {
+      return true;
+    }
+    // 2. If client-side inference found a chart type
+    if (inferredChart && inferredChart !== 'table') {
+      return true;
+    }
+    // 3. Fallback: If data has at least 1 row and at least 1 numeric column
+    const hasNumericCol = columns.some((col) => {
+      const colName = col.name;
+      return data.some((row) => {
+        const val = row?.[colName];
+        return val !== null && val !== undefined && val !== '' && !isNaN(Number(val)) && typeof val !== 'boolean';
+      });
+    });
+    return data.length >= 1 && hasNumericCol;
+  }, [chartSuggestion, inferredChart, columns, data]);
 
   return (
     <div className="results-insights-container">
@@ -170,7 +191,11 @@ export default function ResultsInsights({
       <div className="results-content-wrapper">
         {viewMode === 'chart' && hasChart ? (
           <div className="results-chart-box">
-            <ChartRenderer data={data} columns={columns} />
+            <ChartRenderer
+              data={data}
+              columns={columns}
+              overrideType={chartSuggestion?.chart_type && chartSuggestion.chart_type !== 'table' ? chartSuggestion.chart_type : (inferredChart !== 'table' ? inferredChart : undefined)}
+            />
           </div>
         ) : (
           <div className="results-table-scroll-container">

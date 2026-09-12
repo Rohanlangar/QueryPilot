@@ -15,34 +15,57 @@ const CHART_TYPES = [
 
 export default function ChartRenderer({ data, columns, overrideType = null }) {
   const inferred = inferChartType(columns, data);
-  const [activeType, setActiveType] = useState(overrideType || inferred);
+  const initialType = (overrideType && overrideType !== 'table') 
+    ? overrideType 
+    : (inferred !== 'table' ? inferred : 'bar');
+  const [activeType, setActiveType] = useState(initialType);
+
+  const colTypes = React.useMemo(() => getColumnTypes(columns, data), [columns, data]);
+
+  // Clean numeric data for Recharts (e.g. string numbers to Number)
+  const chartData = React.useMemo(() => {
+    if (!data) return [];
+    return data.map((row) => {
+      const formatted = { ...row };
+      colTypes.numeric.forEach((col) => {
+        const val = row[col.name];
+        if (val !== null && val !== undefined && !isNaN(Number(val))) {
+          formatted[col.name] = Number(val);
+        }
+      });
+      return formatted;
+    });
+  }, [data, colTypes.numeric]);
 
   const renderChart = () => {
-    const colTypes = getColumnTypes(columns, data);
+    const xKey = colTypes.date[0]?.name || colTypes.categorical[0]?.name || columns[0]?.name;
+    const valKeys = colTypes.numeric.map((c) => c.name);
+    // If no explicit numeric columns detected, fallback to the second column
+    const effectiveValKeys = valKeys.length > 0 ? valKeys : (columns[1] ? [columns[1].name] : []);
 
     switch (activeType) {
       case 'bar':
         return (
           <BarChartView
-            data={data}
-            categoryKey={colTypes.categorical[0]?.name || columns[0]?.name}
-            valueKeys={colTypes.numeric.map((c) => c.name)}
+            data={chartData}
+            categoryKey={colTypes.categorical[0]?.name || colTypes.date[0]?.name || columns[0]?.name}
+            valueKeys={effectiveValKeys}
           />
         );
       case 'line':
         return (
           <LineChartView
-            data={data}
-            xKey={colTypes.date[0]?.name || colTypes.categorical[0]?.name || columns[0]?.name}
-            valueKeys={colTypes.numeric.map((c) => c.name)}
+            data={chartData}
+            xKey={xKey}
+            valueKeys={effectiveValKeys}
           />
         );
       case 'pie':
         return (
           <PieChartView
-            data={data}
-            nameKey={colTypes.categorical[0]?.name || columns[0]?.name}
-            valueKey={colTypes.numeric[0]?.name || columns[1]?.name}
+            data={chartData}
+            nameKey={colTypes.categorical[0]?.name || colTypes.date[0]?.name || columns[0]?.name}
+            valueKey={effectiveValKeys[0]}
           />
         );
       case 'stat':

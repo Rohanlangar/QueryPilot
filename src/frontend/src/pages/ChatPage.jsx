@@ -22,6 +22,8 @@ export default function ChatPage() {
     createConversation,
     setActiveSession,
     sendMessage,
+    deleteConversation,
+    renameConversation,
   } = useChatStore();
 
   const activeConnection = useConnectionStore((s) => s.getActiveConnection());
@@ -57,6 +59,32 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteConversation = async (sessionId) => {
+    try {
+      await deleteConversation(sessionId);
+      if (sessionId === currentConvId) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        if (remaining.length > 0) {
+          navigate(`/chat/${remaining[0].id}`);
+        } else {
+          navigate('/chat');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
+
+  const handleRenameConversation = async (sessionId, newTitle) => {
+    try {
+      if (renameConversation) {
+        await renameConversation(sessionId, newTitle);
+      }
+    } catch (err) {
+      console.error('Failed to rename conversation:', err);
+    }
+  };
+
   const handleSendMessage = async (text) => {
     let convId = currentConvId;
 
@@ -88,6 +116,8 @@ export default function ChatPage() {
         activeConversationId={currentConvId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
       />
 
       <div className="chat-page">

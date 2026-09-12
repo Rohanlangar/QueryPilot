@@ -44,9 +44,13 @@ export default function PipelineLoader({ activeStageId, stageProgress }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // If activeStageId is passed from WebSocket or store, use it
+  // If activeStageId is passed from WebSocket or store, use it dynamically
   useEffect(() => {
     if (activeStageId) {
+      if (activeStageId === 'complete') {
+        setCurrentIdx(PIPELINE_STAGES.length);
+        return;
+      }
       const idx = PIPELINE_STAGES.findIndex((s) => s.id === activeStageId);
       if (idx !== -1) {
         setCurrentIdx(idx);
@@ -54,17 +58,17 @@ export default function PipelineLoader({ activeStageId, stageProgress }) {
     }
   }, [activeStageId]);
 
-  // If no external activeStageId provided, simulate smooth progression through stages
+  // If no external activeStageId provided, pace stages realistically based on LLM execution
   useEffect(() => {
     if (activeStageId) return;
 
-    // Progression schedule (ms per stage)
+    // Realistic progression schedule reflecting actual agent execution times
     const timers = [
-      setTimeout(() => setCurrentIdx(1), 1200), // to sql_gen
-      setTimeout(() => setCurrentIdx(2), 2600), // to validate
-      setTimeout(() => setCurrentIdx(3), 3800), // to optimize
-      setTimeout(() => setCurrentIdx(4), 5000), // to execute
-      setTimeout(() => setCurrentIdx(5), 6500), // to explain
+      setTimeout(() => setCurrentIdx(1), 2000),  // Schema finishes -> SQL synthesis starts
+      setTimeout(() => setCurrentIdx(2), 10000), // SQL synthesis (LLM) finishes -> Validation
+      setTimeout(() => setCurrentIdx(3), 12500), // Validation finishes -> Optimization
+      setTimeout(() => setCurrentIdx(4), 14500), // Optimization finishes -> Execution
+      setTimeout(() => setCurrentIdx(5), 17000), // Execution finishes -> Explanation (LLM)
     ];
 
     return () => timers.forEach(clearTimeout);

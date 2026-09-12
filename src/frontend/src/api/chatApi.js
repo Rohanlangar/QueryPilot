@@ -30,6 +30,16 @@ export async function deleteSession(sessionId) {
   await api.delete(`/api/chat/sessions/${sessionId}`);
 }
 
+export async function updateSession(sessionId, title) {
+  try {
+    const { data } = await api.patch(`/api/chat/sessions/${sessionId}`, { title });
+    return data;
+  } catch (err) {
+    console.warn('Failed to update session title on server:', err);
+    return null;
+  }
+}
+
 // ── Messages (Main Query Pipeline) ──────────────────────────
 
 export async function sendMessage(sessionId, content) {

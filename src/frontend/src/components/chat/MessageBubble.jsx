@@ -10,7 +10,9 @@ import { BookOpen, Play, AlertCircle } from 'lucide-react';
 
 export default function MessageBubble({ message, onSuggestedSelect }) {
   const [showExplanation, setShowExplanation] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [showResults, setShowResults] = useState(
+    message.results ? true : false
+  );
 
   if (message.role === 'user') {
     return (

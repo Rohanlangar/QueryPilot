@@ -125,7 +125,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="landing-footer">
-        <p>© 2024 QueryPilot — Autonomous SQL Database Analyst</p>
+        <p>© 2026 QueryPilot — Autonomous SQL Database Analyst</p>
       </footer>
     </div>
   );

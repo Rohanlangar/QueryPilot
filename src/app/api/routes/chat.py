@@ -21,6 +21,7 @@ from app.services.semantic_cache import semantic_cache
 from app.services.audit_service import audit_service
 from app.services.pipeline import agent_pipeline
 from app.services.connection_manager import connection_manager
+from app.core.viz_suggester import viz_suggester
 from app.schemas.chat import (
     ChatSessionCreate,
     ChatSessionResponse,
@@ -166,6 +167,17 @@ async def send_message(
     if cached:
         # Serve from cache
         results_data = json.loads(cached.result_json) if cached.result_json else None
+        chart_sugg = None
+        if results_data and results_data.get("columns") and results_data.get("rows"):
+            try:
+                chart_sugg = viz_suggester.suggest(
+                    columns=results_data["columns"],
+                    rows=results_data["rows"],
+                    sql=cached.sql_generated,
+                )
+            except Exception:
+                pass
+
         assistant_msg = await session_manager.add_message(
             session_id=session_id,
             role="assistant",
@@ -174,6 +186,8 @@ async def send_message(
             sql_executed=cached.sql_generated,
             results_json=cached.result_json,
             result_row_count=cached.result_row_count,
+            suggested_chart_type=chart_sugg.get("chart_type") if chart_sugg else None,
+            chart_config_json=safe_json_dumps(chart_sugg) if chart_sugg else None,
             db=db,
         )
 
@@ -199,6 +213,7 @@ async def send_message(
             results=results_data.get("rows") if results_data else None,
             columns=results_data.get("columns") if results_data else None,
             row_count=cached.result_row_count,
+            chart_suggestion=chart_sugg,
             was_cached=True,
         )
 
@@ -363,3 +378,4 @@ async def explain_sql(
         tables_used=tables,
         complexity_rating=complexity,
     )
+

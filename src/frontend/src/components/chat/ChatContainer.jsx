@@ -5,6 +5,7 @@ import ChatInput from './ChatInput';
 import Chip from '../common/Chip';
 import Loader from '../common/Loader';
 import PipelineLoader from './PipelineLoader';
+import useChatStore from '../../store/chatStore';
 
 const SAMPLE_QUESTIONS = [
   "What were last month's top 10 products by revenue?",
@@ -23,6 +24,7 @@ export default function ChatContainer({
 }) {
   const messagesEndRef = useRef(null);
   const [suggestedText, setSuggestedText] = useState('');
+  const currentStageId = useChatStore((state) => state.currentStageId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -69,7 +71,7 @@ export default function ChatContainer({
             {isLoading && (
               <div className="message message-agent">
                 <div className="agent-response" style={{ width: '100%', maxWidth: '640px' }}>
-                  <PipelineLoader />
+                  <PipelineLoader activeStageId={currentStageId} />
                 </div>
               </div>
             )}

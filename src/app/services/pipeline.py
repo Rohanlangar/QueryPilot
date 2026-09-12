@@ -162,7 +162,7 @@ class AgentPipeline:
                         await _emit_status("validate", "Validating query & security rules...", 2, 6)
                     elif node_name == "validate":
                         await _emit_status("optimize", "Optimizing execution plan...", 3, 6)
-                    elif node_name in ("optimize", "post_opt_validate"):
+                    elif node_name == "post_opt_validate":
                         await _emit_status("execute", "Executing query on database...", 4, 6)
                     elif node_name == "execute":
                         await _emit_status("explain", "Generating business explanation...", 5, 6)

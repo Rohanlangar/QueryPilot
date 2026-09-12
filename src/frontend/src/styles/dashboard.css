@@ -117,8 +117,8 @@
 .sidebar-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 8px 12px;
   border-radius: var(--rounded-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast);
@@ -131,6 +131,8 @@
   background: none;
   width: 100%;
   text-align: left;
+  box-sizing: border-box;
+  min-height: 38px;
 }
 
 .sidebar-item:hover {
@@ -140,12 +142,18 @@
 .sidebar-item.active {
   background-color: var(--color-background);
   border-left: 3px solid var(--color-secondary);
-  padding-left: 11px;
+  padding-left: 9px;
+}
+
+.sidebar-item.editing {
+  background-color: var(--color-background);
 }
 
 .sidebar-item-icon {
   color: var(--color-muted);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .sidebar-item-text {
@@ -159,6 +167,105 @@
   font-size: 11px;
   color: var(--color-muted);
   flex-shrink: 0;
+}
+
+/* Hover action buttons */
+.sidebar-item-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sidebar-item:hover .sidebar-item-meta {
+  display: none;
+}
+
+.sidebar-item:hover .sidebar-item-actions {
+  display: flex;
+}
+
+.sidebar-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-action-btn:hover {
+  background-color: rgba(61, 59, 79, 0.08);
+  color: var(--color-on-surface);
+}
+
+.sidebar-action-btn.delete-btn:hover {
+  background-color: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.sidebar-action-btn.confirm-btn:hover {
+  background-color: var(--color-secondary-light);
+  color: var(--color-secondary-hover);
+}
+
+.sidebar-action-btn.delete-confirm-btn {
+  color: var(--color-error);
+  background-color: var(--color-error-light);
+}
+
+.sidebar-action-btn.delete-confirm-btn:hover {
+  background-color: var(--color-error);
+  color: #ffffff;
+}
+
+/* Inline Edit Form */
+.sidebar-item-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-item-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  color: var(--color-on-surface);
+  background-color: #ffffff;
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--rounded-sm);
+  outline: none;
+}
+
+.sidebar-item-input:focus {
+  border-color: var(--color-secondary-hover);
+  box-shadow: 0 0 0 2px var(--color-secondary-light);
+}
+
+/* Inline Delete Prompt */
+.sidebar-item-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.sidebar-delete-prompt {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-error);
+  margin-right: auto;
 }
 
 /* ---------- Page Layout ---------- */

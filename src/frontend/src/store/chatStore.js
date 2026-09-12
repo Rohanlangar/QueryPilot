@@ -7,6 +7,7 @@ const useChatStore = create((set, get) => ({
   activeMessages: [],    // Messages for the active session
   isLoading: false,
   isSending: false,
+  currentStageId: null,  // Live pipeline stage ('schema'|'sql_gen'|'validate'|'optimize'|'execute'|'explain')
   error: null,
 
   /**
@@ -57,7 +58,7 @@ const useChatStore = create((set, get) => ({
   },
 
   /**
-   * Send a message and receive the pipeline response.
+   * Send a message and receive the pipeline response with live dynamic stage transitions.
    */
   sendMessage: async (sessionId, content) => {
     // Add optimistic user message
@@ -70,20 +71,20 @@ const useChatStore = create((set, get) => ({
     set((state) => ({
       activeMessages: [...state.activeMessages, userMsg],
       isSending: true,
+      currentStageId: 'schema',
       error: null,
     }));
 
-    try {
-      const response = await chatApi.sendMessage(sessionId, content);
+    const finishSuccess = (response) => {
       const agentMsg = mapQueryResponseToMessage(response);
-
       set((state) => ({
         activeMessages: [...state.activeMessages, agentMsg],
         isSending: false,
+        currentStageId: null,
       }));
 
       // Update session title in the sidebar list
-      if (response.message?.content) {
+      if (response.message?.content || content) {
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === sessionId
@@ -92,11 +93,10 @@ const useChatStore = create((set, get) => ({
           ),
         }));
       }
-
       return response;
-    } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to process query';
-      // Add error message to chat
+    };
+
+    const finishError = (errorMsg) => {
       const errorBubble = {
         id: `err-${Date.now()}`,
         role: 'agent',
@@ -108,9 +108,92 @@ const useChatStore = create((set, get) => ({
       set((state) => ({
         activeMessages: [...state.activeMessages, errorBubble],
         isSending: false,
+        currentStageId: null,
         error: errorMsg,
       }));
-      throw err;
+    };
+
+    // 1. Try WebSocket for real-time dynamic stage streaming
+    try {
+      const token = localStorage.getItem('qp_token') || '';
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/chat/${sessionId}?token=${encodeURIComponent(token)}`;
+
+      const wsPromise = new Promise((resolve, reject) => {
+        let ws;
+        let isDone = false;
+        try {
+          ws = new WebSocket(wsUrl);
+        } catch (e) {
+          return reject(e);
+        }
+
+        // Connection timeout: fallback to HTTP if WS does not connect in 4s
+        const connTimeout = setTimeout(() => {
+          if (!isDone && ws.readyState !== WebSocket.OPEN) {
+            try { ws.close(); } catch {}
+            reject(new Error('WebSocket connection timeout'));
+          }
+        }, 4000);
+
+        ws.onopen = () => {
+          clearTimeout(connTimeout);
+          ws.send(JSON.stringify({ token, message: content }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'stage') {
+              if (data.stage) {
+                set({ currentStageId: data.stage });
+              }
+            } else if (data.type === 'result') {
+              isDone = true;
+              clearTimeout(connTimeout);
+              try { ws.close(1000, 'Normal closure'); } catch {}
+              resolve(data.data);
+            } else if (data.type === 'error') {
+              isDone = true;
+              clearTimeout(connTimeout);
+              try { ws.close(); } catch {}
+              reject(new Error(data.message || 'Pipeline execution error'));
+            }
+          } catch (parseErr) {
+            console.warn('Failed to parse WebSocket message:', parseErr);
+          }
+        };
+
+        ws.onerror = (err) => {
+          if (isDone) return;
+          clearTimeout(connTimeout);
+          reject(err);
+        };
+
+        ws.onclose = (event) => {
+          if (isDone) return;
+          clearTimeout(connTimeout);
+          if (!event.wasClean) {
+            reject(new Error('WebSocket disconnected unexpectedly'));
+          }
+        };
+      });
+
+      const response = await wsPromise;
+      return finishSuccess(response);
+
+    } catch (wsErr) {
+      console.warn('Live WebSocket unavailable or failed, falling back to HTTP:', wsErr);
+
+      // 2. Fallback to standard HTTP POST
+      try {
+        const response = await chatApi.sendMessage(sessionId, content);
+        return finishSuccess(response);
+      } catch (err) {
+        const errorMsg = err.response?.data?.detail || err.message || 'Failed to process query';
+        finishError(errorMsg);
+        throw err;
+      }
     }
   },
 
@@ -131,6 +214,26 @@ const useChatStore = create((set, get) => ({
       });
     } catch (err) {
       set({ error: err.response?.data?.detail || 'Failed to delete session' });
+    }
+  },
+
+  /**
+   * Rename a conversation.
+   */
+  renameConversation: async (sessionId, newTitle) => {
+    const trimmed = (newTitle || '').trim();
+    if (!trimmed) return;
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, title: trimmed, updated_at: new Date().toISOString() } : s
+      ),
+    }));
+    try {
+      if (chatApi.updateSession) {
+        await chatApi.updateSession(sessionId, trimmed);
+      }
+    } catch (err) {
+      console.warn('Backend rename not persisted:', err);
     }
   },
 
@@ -187,6 +290,15 @@ function mapMessageFromBackend(msg) {
       try {
         mapped.suggestedQuestions = JSON.parse(msg.follow_up_suggestions_json);
       } catch { /* ignore */ }
+    }
+
+    // Chart suggestion
+    if (msg.chart_config_json) {
+      try {
+        mapped.chartSuggestion = JSON.parse(msg.chart_config_json);
+      } catch { /* ignore */ }
+    } else if (msg.suggested_chart_type) {
+      mapped.chartSuggestion = { chart_type: msg.suggested_chart_type };
     }
 
     // Explanation

@@ -101,3 +101,4 @@ class ExplainSQLResponse(BaseModel):
     clause_breakdown: Optional[List[dict]] = None  # Per-clause explanation
     tables_used: Optional[List[str]] = None
     complexity_rating: Optional[str] = None  # "simple", "moderate", "complex"
+    complexity_rating: Optional[str] = None  # "simple", "moderate", "complex"

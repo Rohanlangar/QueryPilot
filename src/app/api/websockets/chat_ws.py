@@ -48,21 +48,13 @@ ws_manager = ConnectionManagerWS()
 
 
 @router.websocket("/ws/chat/{session_id}")
+@router.websocket("/api/chat/ws/{session_id}")
 async def websocket_chat(
     websocket: WebSocket,
     session_id: str,
 ):
     """
-    WebSocket endpoint for streaming chat responses.
-
-    Protocol:
-      Client sends: {"token": "jwt...", "message": "question text"}
-      Server sends:
-        {"type": "status", "message": "Understanding schema..."}
-        {"type": "status", "message": "Generating SQL..."}
-        {"type": "status", "message": "Executing query..."}
-        {"type": "result", "data": {...full QueryResponse...}}
-        {"type": "error", "message": "..."}
+    WebSocket endpoint for streaming chat responses with real-time stage updates.
     """
     await websocket.accept()
     client_id = f"ws_{session_id}"
@@ -73,30 +65,33 @@ async def websocket_chat(
             raw = await websocket.receive_text()
             data = json.loads(raw)
 
-            # Authenticate
-            token = data.get("token")
+            async def send_ws(payload: dict):
+                await websocket.send_text(safe_json_dumps(payload))
+
+            # Authenticate via payload or query param
+            token = data.get("token") or websocket.query_params.get("token")
             if not token:
-                await websocket.send_json({"type": "error", "message": "No auth token provided"})
+                await send_ws({"type": "error", "message": "No auth token provided"})
                 continue
 
             try:
                 payload = decode_access_token(token)
                 user_id = payload.get("sub")
             except Exception:
-                await websocket.send_json({"type": "error", "message": "Invalid token"})
+                await send_ws({"type": "error", "message": "Invalid token"})
                 continue
 
             message = data.get("message", "").strip()
             if not message:
-                await websocket.send_json({"type": "error", "message": "Empty message"})
+                await send_ws({"type": "error", "message": "Empty message"})
                 continue
 
             # Create status callback for streaming stage updates
             async def on_status(status_payload):
                 if isinstance(status_payload, dict):
-                    await websocket.send_json(status_payload)
+                    await send_ws(status_payload)
                 else:
-                    await websocket.send_json({"type": "status", "message": str(status_payload)})
+                    await send_ws({"type": "status", "message": str(status_payload)})
 
             # Run pipeline with streaming status
             async with async_session_factory() as db:
@@ -104,7 +99,7 @@ async def websocket_chat(
                     # Get session
                     session = await session_manager.get_session(session_id, db)
                     if not session or session.user_id != user_id:
-                        await websocket.send_json({"type": "error", "message": "Session not found"})
+                        await send_ws({"type": "error", "message": "Session not found"})
                         continue
 
                     # Get connection
@@ -113,7 +108,66 @@ async def websocket_chat(
                     )
                     conn = result.scalar_one_or_none()
                     if not conn:
-                        await websocket.send_json({"type": "error", "message": "Connection not found"})
+                        await send_ws({"type": "error", "message": "Connection not found"})
+                        continue
+
+                    # Check semantic cache first
+                    from app.services.semantic_cache import semantic_cache
+                    cached = await semantic_cache.check_cache(
+                        question=message,
+                        connection_id=conn.id,
+                        db=db,
+                    )
+                    if cached:
+                        await on_status({"type": "stage", "stage": "schema", "label": "Checking cache & schema...", "index": 0, "total": 6})
+                        await on_status({"type": "stage", "stage": "complete", "label": "Served from semantic cache", "index": 6, "total": 6})
+                        results_data = json.loads(cached.result_json) if cached.result_json else None
+                        from app.core.viz_suggester import viz_suggester
+                        chart_sugg = None
+                        if results_data and results_data.get("columns") and results_data.get("rows"):
+                            try:
+                                chart_sugg = viz_suggester.suggest(
+                                    columns=results_data["columns"],
+                                    rows=results_data["rows"],
+                                    sql=cached.sql_generated,
+                                )
+                            except Exception:
+                                pass
+
+                        assistant_msg = await session_manager.add_message(
+                            session_id=session_id,
+                            role="assistant",
+                            content="(Cached result)",
+                            sql_generated=cached.sql_generated,
+                            sql_executed=cached.sql_generated,
+                            results_json=cached.result_json,
+                            result_row_count=cached.result_row_count,
+                            suggested_chart_type=chart_sugg.get("chart_type") if chart_sugg else None,
+                            chart_config_json=safe_json_dumps(chart_sugg) if chart_sugg else None,
+                            db=db,
+                        )
+                        await send_ws({
+                            "type": "result",
+                            "data": {
+                                "message": {
+                                    "id": assistant_msg.id,
+                                    "role": assistant_msg.role,
+                                    "content": assistant_msg.content,
+                                    "created_at": assistant_msg.created_at.isoformat() if hasattr(assistant_msg.created_at, "isoformat") else str(assistant_msg.created_at),
+                                },
+                                "explanation": "(Served from cache — this query was previously answered)",
+                                "sql": cached.sql_generated,
+                                "results": results_data.get("rows") if results_data else None,
+                                "columns": results_data.get("columns") if results_data else None,
+                                "row_count": cached.result_row_count,
+                                "execution_time_ms": 20.0,
+                                "confidence": 0.95,
+                                "confidence_reason": "Exact semantic cache match",
+                                "chart_suggestion": chart_sugg,
+                                "was_cached": True,
+                            },
+                        })
+                        await db.commit()
                         continue
 
                     # Save user message
@@ -121,26 +175,40 @@ async def websocket_chat(
                         session_id=session_id, role="user", content=message, db=db
                     )
 
+                    # Build conversation history for context
+                    context_messages = await session_manager.get_context(session_id, db, last_n=5)
+                    conversation_history = [
+                        {"role": m.role, "content": m.content, "sql": m.sql_generated}
+                        for m in context_messages
+                    ]
+
                     # Ensure engine
                     await connection_manager.create_engine(conn)
 
-                    # Run pipeline
+                    # Run pipeline with live status callback
                     pipeline_result = await agent_pipeline.run(
                         query=message,
                         connection_id=conn.id,
                         db_type=conn.db_type,
+                        conversation_history=conversation_history,
                         db=db,
                         on_status=on_status,
                     )
 
                     if pipeline_result.error:
-                        await websocket.send_json({
+                        await send_ws({
                             "type": "error",
                             "message": pipeline_result.error,
                         })
                     else:
                         sql_executed = pipeline_result.optimized_sql or pipeline_result.generated_sql
                         results = pipeline_result.query_results
+                        if results and results.get("rows") and results.get("columns"):
+                            raw_rows = results["rows"]
+                            if raw_rows and isinstance(raw_rows[0], (list, tuple)):
+                                cols = results["columns"]
+                                results["rows"] = [dict(zip(cols, r)) for r in raw_rows]
+
                         results_json = safe_json_dumps(results) if results else None
                         follow_ups = safe_json_dumps(pipeline_result.follow_up_suggestions) if pipeline_result.follow_up_suggestions else None
                         chart_config = safe_json_dumps(pipeline_result.chart_suggestion) if pipeline_result.chart_suggestion else None
@@ -162,7 +230,22 @@ async def websocket_chat(
                             db=db,
                         )
 
-                        await websocket.send_json({
+                        # Cache result
+                        await semantic_cache.store_cache(
+                            question=message,
+                            connection_id=conn.id,
+                            sql=pipeline_result.generated_sql,
+                            result_json=results_json,
+                            result_row_count=results.get("row_count") if results else None,
+                            db=db,
+                        )
+
+                        # Update session title if first message
+                        if len(conversation_history) <= 1:
+                            title = message[:100] + ("..." if len(message) > 100 else "")
+                            await session_manager.update_session_title(session_id, title, db)
+
+                        await send_ws({
                             "type": "result",
                             "data": {
                                 "message": {
@@ -189,7 +272,7 @@ async def websocket_chat(
                 except Exception as e:
                     await db.rollback()
                     logger.error(f"WebSocket pipeline error: {e}", exc_info=True)
-                    await websocket.send_json({
+                    await send_ws({
                         "type": "error",
                         "message": f"Pipeline error: {str(e)}",
                     })
