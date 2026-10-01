@@ -314,10 +314,28 @@ def execute_query_node(state: dict) -> dict:
             "error": "No SQL query provided for execution.",
         }
 
+    # If user approval is required and not yet granted, return sandbox preview without touching real DB
+    if state.get("requires_user_approval") and not state.get("user_approved"):
+        sandbox_rows = state.get("sandbox_result", [])
+        return {
+            "query_result": sandbox_rows,
+            "row_count": len(sandbox_rows),
+            "execution_error": None,
+            "error": None,
+            "requires_user_approval": True,
+        }
+
     try:
         from db.connection_manager import get_connection_engine
         engine = get_connection_engine(state.get("connection_id"))
         with engine.connect() as conn:
+            # Set statement timeout on supported engines
+            if "postgres" in dialect.lower():
+                try:
+                    conn.execute(text("SET statement_timeout = 10000;"))
+                except Exception:
+                    pass
+
             result_proxy = conn.execute(text(sql))
             if result_proxy.returns_rows:
                 keys = list(result_proxy.keys())
@@ -329,6 +347,8 @@ def execute_query_node(state: dict) -> dict:
                             row_dict[k] = v.isoformat()
                         elif isinstance(v, (bytes, bytearray)):
                             row_dict[k] = v.hex()
+                        elif hasattr(v, "as_tuple") or v.__class__.__name__ == "Decimal":
+                            row_dict[k] = float(v)
                         else:
                             row_dict[k] = v
                     raw_rows.append(row_dict)

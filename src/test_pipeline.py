@@ -32,6 +32,15 @@ from agent.Schema.sql_gen_schema import SQLGenerationOutput
 from agent.Schema.validation_schema import ValidationResult
 from agent.Schema.optimization_schema import OptimizationOutput
 from agent.Schema.explanation_schema import ExplanationOutput
+from agent.Schema.ambiguity_schema import AmbiguityCheckOutput
+from agent.sandbox_node import sandbox_node
+from sandbox.sandbox_manager import sandbox_manager
+from graph.build_graph import (
+    route_after_ambiguity,
+    route_after_validation,
+    route_after_sandbox,
+    route_after_execution,
+)
 from agent.Prompts.schema_prompt import build_schema_user_prompt
 from agent.Prompts.sql_gen_prompt import build_sql_gen_user_prompt
 from agent.Prompts.optimization_prompt import build_optimization_user_prompt
@@ -89,7 +98,7 @@ def test_prompts():
     assert "row_count" in p3
 
     p4 = build_explanation_user_prompt("How many orders?", "SELECT COUNT(*) FROM orders", 1, [{"count": 10}])
-    assert "Result" in p4
+    assert "Sample Output" in p4
     print("  ✓ All prompt builders verified.")
 
 
@@ -224,10 +233,11 @@ def test_connection_manager():
     )
 
     # 1. Test connecting to SQLite
+    db_path = os.path.join(os.path.dirname(__file__), "company.db")
     conf = DatabaseConfig(
         connection_id="test_analytics_db",
         db_type="sqlite",
-        database="company.db"
+        database=db_path
     )
     test_res = test_connection(conf)
     assert test_res["success"] is True, f"Connection test failed: {test_res}"
@@ -251,8 +261,82 @@ def test_connection_manager():
     print("  ✓ Dynamic database testing, schema reflection, registration, and retrieval verified.")
 
 
+def test_sandbox_and_ambiguity():
+    print("\n[8/9] Testing Ambiguity Detection & Isolated Sandbox Execution...")
+    # 1. Ambiguity schema test
+    amb_out = AmbiguityCheckOutput(
+        is_ambiguous=True,
+        clarification_question="Did you mean total revenue for 2023 or 2024?",
+        reasoning="Timeframe unspecified"
+    )
+    assert amb_out.is_ambiguous is True
+    assert "2023" in amb_out.clarification_question
+
+    # 2. Ambiguity routing test
+    assert route_after_ambiguity({"is_ambiguous": True}) == "clarify"
+    assert route_after_ambiguity({"is_ambiguous": False}) == "proceed"
+
+    # 3. Validation routing to sandbox test
+    assert route_after_validation({"validation_passed": True}) == "sandbox"
+    assert route_after_validation({"validation_passed": False, "sql_gen_attempts": 1}) == "regenerate"
+    assert route_after_validation({"validation_passed": False, "sql_gen_attempts": 3}) == "fail"
+
+    # 4. Sandbox routing with self-healing retry test
+    assert route_after_sandbox({"sandbox_passed": True}) == "optimize"
+    assert route_after_sandbox({"sandbox_passed": False, "sql_gen_attempts": 1}) == "regenerate"
+    assert route_after_sandbox({"sandbox_passed": False, "sql_gen_attempts": 3}) == "fail"
+
+    # 5. Sandbox manager execution with valid query
+    session_id = "test_verify_session_42"
+    valid_res = sandbox_manager.execute(
+        session_id=session_id,
+        sql="SELECT name, budget FROM departments ORDER BY budget DESC LIMIT 2",
+    )
+    assert valid_res["success"] is True
+    assert valid_res["row_count"] == 2
+    assert "name" in valid_res["columns"]
+    print(f"  ✓ Sandbox query executed successfully in [{valid_res['engine']}] sandbox.")
+
+    # 6. Sandbox manager execution with invalid query (syntax error / unknown table)
+    bad_res = sandbox_manager.execute(
+        session_id=session_id,
+        sql="SELECT * FROM table_that_does_not_exist_at_all",
+    )
+    assert bad_res["success"] is False
+    assert bad_res["error"] is not None
+    print(f"  ✓ Sandbox caught faulty query and provided error feedback: {bad_res['error'][:60]}...")
+
+    # 7. Sandbox node LangGraph state integration test
+    # Passing query
+    node_pass_state = {
+        "optimized_sql": "SELECT id, name FROM departments",
+        "session_id": session_id,
+        "sql_gen_attempts": 1,
+    }
+    pass_update = sandbox_node(node_pass_state)
+    assert pass_update["sandbox_passed"] is True
+    assert pass_update["sandbox_error"] is None
+
+    # Failing query feeds error back into validation_errors for sql_gen
+    node_fail_state = {
+        "generated_sql": "SELECT nonexistent_column FROM departments",
+        "session_id": session_id,
+        "validation_errors": ["Previous check"],
+        "sql_gen_attempts": 1,
+    }
+    fail_update = sandbox_node(node_fail_state)
+    assert fail_update["sandbox_passed"] is False
+    assert fail_update["sandbox_error"] is not None
+    assert any("Sandbox runtime error" in err for err in fail_update["validation_errors"])
+    print("  ✓ Sandbox node fed runtime error directly into validation_errors for self-healing repair.")
+
+    # 8. Cleanup sandbox session
+    sandbox_manager.destroy_session(session_id)
+    print("  ✓ Sandbox session destroyed cleanly.")
+
+
 def test_fastapi_and_graph():
-    print("\n[8/8] Testing LangGraph Compilation & FastAPI App (Phase 7)...")
+    print("\n[9/9] Testing LangGraph Compilation & FastAPI App (Phase 7)...")
     graph = build_graph()
     assert graph is not None
     try:
@@ -279,7 +363,8 @@ if __name__ == "__main__":
     test_pii_and_execution()
     test_deterministic_validation()
     test_connection_manager()
+    test_sandbox_and_ambiguity()
     test_fastapi_and_graph()
     print("\n" + "=" * 65)
-    print("ALL 8 TEST SUITES PASSED! System is fully operational.")
+    print("ALL 9 TEST SUITES PASSED! System is fully operational.")
     print("=" * 65)

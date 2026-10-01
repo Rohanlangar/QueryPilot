@@ -117,6 +117,14 @@ async def delete_session(
     if not session or session.user_id != user.id:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Clean up disposable sandbox container/instance for this session
+    try:
+        from sandbox.sandbox_manager import sandbox_manager
+        sandbox_manager.destroy_session(session_id)
+        sandbox_manager.destroy_session(f"sess_{user.id}_{session.connection_id or 'default'}")
+    except Exception:
+        pass
+
     await session_manager.delete_session(session_id, db)
 
 
@@ -240,6 +248,8 @@ async def send_message(
         db_type=conn.db_type,
         conversation_history=conversation_history,
         db=db,
+        user_id=user.id,
+        user_role=user.role,
     )
 
     # Handle pipeline errors

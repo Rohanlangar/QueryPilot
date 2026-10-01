@@ -281,5 +281,10 @@ def delete_connection(connection_id: str) -> bool:
     """Remove a database connection from the registry."""
     if connection_id in _ACTIVE_CONNECTIONS:
         del _ACTIVE_CONNECTIONS[connection_id]
+        try:
+            from db.retrieval import invalidate_table_embeddings
+            invalidate_table_embeddings(connection_id)
+        except Exception:
+            pass
         return True
     return False

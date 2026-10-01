@@ -52,6 +52,23 @@ class AgentState(TypedDict, total=False):
     confidence_label: str
     suggested_followups: List[str]
 
+    # ── Ambiguity Agent output ─────────────────────────────────────────
+    is_ambiguous: bool
+    clarification_question: Optional[str]
+
+    # ── Session / Sandbox fields ──────────────────────────────────────
+    session_id: Optional[str]
+    sandbox_executed: bool
+    sandbox_passed: bool
+    sandbox_result: Optional[List[Dict]]
+    sandbox_error: Optional[str]
+    sandbox_engine: Optional[str]
+    sandbox_dialect_warning: Optional[str]
+
+    # ── User Approval ─────────────────────────────────────────────────
+    requires_user_approval: bool
+    user_approved: Optional[bool]
+
     # ── Final output ───────────────────────────────────────────────────
     final_answer: Optional[str]
     error: Optional[str]

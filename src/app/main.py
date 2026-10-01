@@ -118,6 +118,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down QueryPilot Backend...")
+    try:
+        from sandbox.sandbox_manager import sandbox_manager
+        sandbox_manager.cleanup_all()
+    except Exception:
+        pass
     await connection_manager.close_all()
     await close_db()
     logger.info("Cleanup completed. Goodbye!")

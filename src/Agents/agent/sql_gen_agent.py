@@ -36,8 +36,10 @@ def sql_gen_node(state: dict) -> dict:
         SQLGenerationOutput, method="json_schema"
     )
 
-    # Combine static validation errors and runtime database execution errors for retry prompt
+    # Combine static validation errors, sandbox errors, and database execution errors for retry prompt
     prior_errors = list(state.get("validation_errors") or [])
+    if state.get("sandbox_error"):
+        prior_errors.append(f"Sandbox execution error: {state['sandbox_error']}")
     if state.get("execution_error"):
         prior_errors.append(f"Database runtime error: {state['execution_error']}")
 
@@ -65,5 +67,6 @@ def sql_gen_node(state: dict) -> dict:
         "generated_sql": result.sql,
         "sql_gen_attempts": state.get("sql_gen_attempts", 0) + 1,
         "validation_errors": [],
+        "sandbox_error": None,
         "execution_error": None,
     }

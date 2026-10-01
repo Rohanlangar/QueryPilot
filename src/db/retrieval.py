@@ -19,6 +19,9 @@ from config import EMBEDDING_MODEL, OLLAMA_BASE_URL
 # Lazy-initialized embeddings client
 _embeddings: OllamaEmbeddings | None = None
 
+# Cache for table embeddings: {conn_key: {table_name: (desc_hash, vector)}}
+_table_embeddings_cache: dict[str, dict[str, tuple[str, list[float]]]] = {}
+
 
 def _get_embeddings() -> OllamaEmbeddings:
     """Get or create the Ollama embeddings client (singleton)."""
@@ -38,35 +41,103 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return float(np.dot(a_arr, b_arr) / (np.linalg.norm(a_arr) * np.linalg.norm(b_arr) + 1e-10))
 
 
+def invalidate_table_embeddings(connection_id: str | None = None) -> None:
+    """Clear cached table embeddings for a specific connection or all connections."""
+    global _table_embeddings_cache
+    conn_key = connection_id or "default"
+    if conn_key in _table_embeddings_cache:
+        del _table_embeddings_cache[conn_key]
+
+
+def precompute_table_embeddings(connection_id: str | None = None) -> int:
+    """Precompute and cache table embeddings for the given connection.
+
+    Returns the number of tables embedded.
+    """
+    all_tables = get_connection_schema(connection_id)
+    if not all_tables:
+        return 0
+
+    conn_key = connection_id or "default"
+    if conn_key not in _table_embeddings_cache:
+        _table_embeddings_cache[conn_key] = {}
+
+    import hashlib
+    embeddings = _get_embeddings()
+    tables_to_embed = []
+    texts_to_embed = []
+    hashes = []
+
+    for t_name, t_meta in all_tables.items():
+        desc = describe_table(t_meta)
+        desc_hash = hashlib.md5(desc.encode("utf-8")).hexdigest()
+        cached = _table_embeddings_cache[conn_key].get(t_name)
+        if not cached or cached[0] != desc_hash:
+            tables_to_embed.append(t_name)
+            texts_to_embed.append(desc)
+            hashes.append(desc_hash)
+
+    if texts_to_embed:
+        vectors = embeddings.embed_documents(texts_to_embed)
+        for t_name, h, vec in zip(tables_to_embed, hashes, vectors):
+            _table_embeddings_cache[conn_key][t_name] = (h, vec)
+
+    return len(all_tables)
+
+
 def retrieve_candidate_tables(question: str, top_k: int = 25, connection_id: str | None = None) -> dict:
     """Narrow the active database schema to the most relevant tables for the question.
 
-    Embeds each table description via nomic-embed-text (Ollama), computes
-    cosine similarity against the question embedding, and returns the top-k.
-    Supports dynamic database selection via connection_id.
+    Uses pre-cached table embeddings with differential embedding for any modified/new
+    tables, computing cosine similarity against the question embedding.
     """
     all_tables = get_connection_schema(connection_id)
 
     if not all_tables:
         return {}
 
-    # Build text descriptions for each table
     table_names = list(all_tables.keys())
-    table_texts = [describe_table(all_tables[t]) for t in table_names]
+    conn_key = connection_id or "default"
 
-    # Try embedding question + all table descriptions via Ollama with graceful fallback
     try:
+        import hashlib
         embeddings = _get_embeddings()
         question_emb = embeddings.embed_query(question)
-        table_embs = embeddings.embed_documents(table_texts)
 
-        # Rank by cosine similarity
-        scores = [_cosine_similarity(question_emb, t_emb) for t_emb in table_embs]
+        # Check and populate table cache incrementally
+        if conn_key not in _table_embeddings_cache:
+            _table_embeddings_cache[conn_key] = {}
+
+        missing_tables = []
+        missing_texts = []
+        missing_hashes = []
+
+        for t in table_names:
+            desc = describe_table(all_tables[t])
+            desc_hash = hashlib.md5(desc.encode("utf-8")).hexdigest()
+            cached = _table_embeddings_cache[conn_key].get(t)
+            if not cached or cached[0] != desc_hash:
+                missing_tables.append(t)
+                missing_texts.append(desc)
+                missing_hashes.append(desc_hash)
+
+        if missing_texts:
+            new_embs = embeddings.embed_documents(missing_texts)
+            for t, h, vec in zip(missing_tables, missing_hashes, new_embs):
+                _table_embeddings_cache[conn_key][t] = (h, vec)
+
+        # Score all tables using cached embeddings
+        scores = []
+        for t in table_names:
+            t_vec = _table_embeddings_cache[conn_key][t][1]
+            scores.append(_cosine_similarity(question_emb, t_vec))
+
         ranked = sorted(zip(table_names, scores), key=lambda x: -x[1])
         top_tables = [name for name, _ in ranked[:top_k]]
         return {t: all_tables[t] for t in top_tables}
+
     except Exception as e:
-        # Fallback to returning candidate tables directly if Ollama is unreachable
+        # Fallback to returning candidate tables directly if Ollama/embedding is unreachable
         print(f"[Warning] Embedding retrieval failed ({e}), falling back to full table list.")
         return {t: all_tables[t] for t in table_names[:top_k]}
 

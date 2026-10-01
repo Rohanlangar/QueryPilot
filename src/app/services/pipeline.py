@@ -69,6 +69,8 @@ class AgentPipeline:
         schema_context: Dict = None,
         db: AsyncSession = None,
         on_status: callable = None,
+        user_id: str = "chat_user",
+        user_role: str = "admin",
     ) -> AgentContext:
         """
         Execute the full LangGraph agent pipeline.
@@ -129,18 +131,19 @@ class AgentPipeline:
                 except Exception as cb_err:
                     logger.warning(f"Status callback failed: {cb_err}")
 
-            await _emit_status("schema", "Analyzing database schema...", 0, 6)
+            await _emit_status("ambiguity", "Analyzing query clarity...", 0, 7)
 
             global _langgraph_pipeline
             if _langgraph_pipeline is None:
                 _langgraph_pipeline = build_graph()
 
             initial_state: AgentState = {
-                "user_id": "chat_user",
-                "user_role": "admin",
+                "user_id": user_id,
+                "user_role": user_role,
                 "question": query,
                 "db_dialect": db_type or "sqlite",
                 "connection_id": connection_id,
+                "session_id": f"sess_{user_id}_{connection_id or 'default'}",
                 "conversation_history": conversation_history or [],
                 "sql_gen_attempts": 0,
             }
@@ -156,21 +159,36 @@ class AgentPipeline:
                         final_state.update(node_output)
 
                     # Trigger next stage status update based on completed node
-                    if node_name == "schema":
-                        await _emit_status("sql_gen", "Synthesizing SQL query...", 1, 6)
+                    if node_name == "ambiguity":
+                        if final_state.get("is_ambiguous"):
+                            await _emit_status("ambiguity", "Clarification needed for ambiguous query...", 1, 7)
+                        else:
+                            await _emit_status("schema", "Analyzing database schema...", 1, 7)
+                    elif node_name == "schema":
+                        await _emit_status("sql_gen", "Synthesizing SQL query...", 2, 7)
                     elif node_name == "sql_gen":
-                        await _emit_status("validate", "Validating query & security rules...", 2, 6)
+                        await _emit_status("validate", "Validating query & security rules...", 3, 7)
                     elif node_name == "validate":
-                        await _emit_status("optimize", "Optimizing execution plan...", 3, 6)
+                        await _emit_status("sandbox", "Executing in isolated sandbox...", 4, 7)
+                    elif node_name == "sandbox":
+                        await _emit_status("optimize", "Optimizing execution plan...", 5, 7)
                     elif node_name == "post_opt_validate":
-                        await _emit_status("execute", "Executing query on database...", 4, 6)
+                        await _emit_status("execute", "Executing verified query on database...", 6, 7)
                     elif node_name == "execute":
-                        await _emit_status("explain", "Generating business explanation...", 5, 6)
+                        await _emit_status("explain", "Generating business explanation...", 7, 7)
 
             context.execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            await _emit_status("complete", "Pipeline complete", 6, 6)
+            await _emit_status("complete", "Pipeline complete", 7, 7)
 
             # Extract outputs from LangGraph state into AgentContext
+            context.is_ambiguous = final_state.get("is_ambiguous", False)
+            context.clarification_question = final_state.get("clarification_question")
+            context.sandbox_executed = final_state.get("sandbox_executed", False)
+            context.sandbox_passed = final_state.get("sandbox_passed", False)
+            context.sandbox_engine = final_state.get("sandbox_engine")
+            context.sandbox_dialect_warning = final_state.get("sandbox_dialect_warning")
+            context.requires_user_approval = final_state.get("requires_user_approval", False)
+
             context.relevant_tables = list(final_state.get("relevant_schema", {}).keys())
             context.generated_sql = final_state.get("generated_sql") or ""
             context.optimized_sql = final_state.get("optimized_sql") or ""

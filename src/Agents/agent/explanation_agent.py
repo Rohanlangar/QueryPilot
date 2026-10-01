@@ -183,6 +183,17 @@ def explanation_node(state: dict) -> dict:
         {"explanation": "...", "confidence_label": "...",
          "suggested_followups": [...], "final_answer": "..."}
     """
+    # If the request was identified as ambiguous, return clarification prompt directly
+    if state.get("is_ambiguous") and state.get("clarification_question"):
+        clarification = state["clarification_question"]
+        return {
+            "explanation": clarification,
+            "confidence_label": "Needs Clarification",
+            "confidence_reason": "Question is ambiguous or lacks required context.",
+            "suggested_followups": ["Please choose an option above or rephrase your request."],
+            "final_answer": clarification,
+        }
+
     sql_query = state.get("optimized_sql") or state.get("generated_sql") or ""
     raw_results = state.get("query_result") or []
     sample = raw_results[:MAX_ROWS_TO_LLM]
@@ -190,6 +201,8 @@ def explanation_node(state: dict) -> dict:
     question = state.get("question", "")
 
     fallback_explanation = generate_sql_clause_explanation(sql_query, question, row_count)
+    if state.get("sandbox_dialect_warning"):
+        fallback_explanation = f"<div class='warning-box'><strong>Dialect Notice:</strong> {state['sandbox_dialect_warning']}</div>\n" + fallback_explanation
     default_followups = generate_default_followups(sql_query, question)
 
     llm = ChatOllama(

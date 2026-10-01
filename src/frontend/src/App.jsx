@@ -7,6 +7,7 @@ import ExplainPage from './pages/ExplainPage';
 import ConnectionsPage from './pages/ConnectionsPage';
 import AuditPage from './pages/AuditPage';
 import SettingsPage from './pages/SettingsPage';
+import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
 import useAuthStore from './store/authStore';
 import useConnectionStore from './store/connectionStore';
@@ -47,6 +48,7 @@ function AppLayout() {
         <Route path="/connections" element={<ConnectionsPage />} />
         <Route path="/audit" element={<AuditPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </>
   );

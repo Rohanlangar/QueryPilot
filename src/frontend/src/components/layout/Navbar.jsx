@@ -62,6 +62,18 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
         >
           SETTINGS
         </NavLink>
+        {user?.role === 'admin' && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) => `navbar-link ${isActive ? 'active' : ''}`}
+            style={({ isActive }) => ({
+              color: isActive ? 'var(--color-primary, #6366f1)' : '#818cf8',
+              fontWeight: 600,
+            })}
+          >
+            ADMIN
+          </NavLink>
+        )}
       </div>
 
       <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

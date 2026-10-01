@@ -102,6 +102,11 @@ async def websocket_chat(
                         await send_ws({"type": "error", "message": "Session not found"})
                         continue
 
+                    # Get user
+                    user_res = await db.execute(select(User).where(User.id == user_id))
+                    user_obj = user_res.scalar_one_or_none()
+                    user_role = user_obj.role if user_obj else "viewer"
+
                     # Get connection
                     result = await db.execute(
                         select(Connection).where(Connection.id == session.connection_id)
@@ -193,6 +198,8 @@ async def websocket_chat(
                         conversation_history=conversation_history,
                         db=db,
                         on_status=on_status,
+                        user_id=user_id,
+                        user_role=user_role,
                     )
 
                     if pipeline_result.error:
@@ -283,3 +290,8 @@ async def websocket_chat(
         logger.error(f"WebSocket error: {e}", exc_info=True)
     finally:
         ws_manager.disconnect(client_id)
+        try:
+            from sandbox.sandbox_manager import sandbox_manager
+            sandbox_manager.destroy_session(session_id)
+        except Exception:
+            pass

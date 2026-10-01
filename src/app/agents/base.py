@@ -56,6 +56,17 @@ class AgentContext:
     # ── Visualization ─────────────────────────────────────────
     chart_suggestion: Dict = field(default_factory=dict)
 
+    # ── Ambiguity Check ───────────────────────────────────────
+    is_ambiguous: bool = False
+    clarification_question: Optional[str] = None
+
+    # ── Sandbox Execution ─────────────────────────────────────
+    sandbox_executed: bool = False
+    sandbox_passed: bool = False
+    sandbox_engine: Optional[str] = None
+    sandbox_dialect_warning: Optional[str] = None
+    requires_user_approval: bool = False
+
     # ── Error State ───────────────────────────────────────────
     error: Optional[str] = None
 
